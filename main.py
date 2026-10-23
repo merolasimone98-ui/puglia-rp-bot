@@ -57,6 +57,7 @@ LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/15612846708
 ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
 ID_CANALE_REGISTRO_MULTE = 1563215066411696299
 ID_CANALE_CONTO_BANCARIO = 1563216017851949227
+ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
 
 # ==========================================
 # 💾 GESTIONE PERSISTENZA DATI (JSON)
@@ -1166,267 +1167,141 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
     )
 
 # ==========================================
-# 🆔 MODULO: IDENTIFICAZIONE STAFF & REVOCA
+# 📝 MODALE IDENTIFICAZIONE STAFF
 # ==========================================
-class ModalIdentificazione(discord.ui.Modal, title="🆔 Registrazione Staffer"):
-    roblox_name = discord.ui.TextInput(label="Nome Account Roblox", placeholder="Es. Player123", required=True)
-    grado = discord.ui.TextInput(label="Grado Staff", placeholder="Es. Helper, Mod, Admin", required=True)
+class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Puglia RP"):
+    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    roblox_id = discord.ui.TextInput(label="🔢 ID Roblox (Numerico)", placeholder="Es. 123456789", required=True, max_length=20)
+    ruolo_staff = discord.ui.TextInput(label="🛡️ Ruolo / Grado Staff", placeholder="Es. Helper / Mod / Admin", required=True, max_length=30)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        user_id_str = str(interaction.user.id)
-        data = load_data()
 
-        data["users"][user_id_str] = {
-            "roblox_name": self.roblox_name.value,
-            "grado": self.grado.value,
-            "data_registrazione": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if not canale_log:
+            await interaction.followup.send("❌ Canale log documenti non trovato!", ephemeral=True)
+            return
+
+        embed_richiesta = discord.Embed(
+            title="📥 NUOVA RICHIESTA IDENTIFICAZIONE STAFF",
+            description=(
+                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"🎮 **Username Roblox:** `{self.roblox_user.value.strip()}`\n"
+                f"🔢 **ID Roblox:** `{self.roblox_id.value.strip()}`\n"
+                f"🛡️ **Ruolo Richiesto/Dichiarato:** `{self.ruolo_staff.value.strip()}`"
+            ),
+            color=discord.Color.orange(),
+            timestamp=discord.utils.utcnow()
+        )
+        embed_richiesta.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={self.roblox_id.value.strip()}&width=420&height=420&format=png")
+        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione Staff/Admin")
+
+        # Invia nel canale Log Documenti con la vista di approvazione
+        vista = VistaApprovazioneIdentificazione(
+            user_id=str(interaction.user.id),
+            roblox_user=self.roblox_user.value.strip(),
+            roblox_id=self.roblox_id.value.strip(),
+            ruolo_staff=self.ruolo_staff.value.strip()
+        )
+        await canale_log.send(embed=embed_richiesta, view=vista)
+
+        await interaction.followup.send("✅ **Modulo inviato con successo!** La tua identificazione è in attesa di verifica dallo Staff.", ephemeral=True)
+
+
+# ==========================================
+# 🔘 PULSANTI ACCETTA / RIFIUTA IDENTIFICAZIONE
+# ==========================================
+class VistaApprovazioneIdentificazione(discord.ui.View):
+    def __init__(self, user_id: str, roblox_user: str, roblox_id: str, ruolo_staff: str):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.roblox_user = roblox_user
+        self.roblox_id = roblox_id
+        self.ruolo_staff = ruolo_staff
+
+    @discord.ui.button(label="✅ Accetta", style=discord.ButtonStyle.success, custom_id="btn_accetta_identificazione")
+    async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+
+        # Salvataggio dati nei record Staff
+        data = load_data()
+        if "identificazioni_staff" not in data:
+            data["identificazioni_staff"] = {}
+
+        data["identificazioni_staff"][self.user_id] = {
+            "roblox_user": self.roblox_user,
+            "roblox_id": self.roblox_id,
+            "ruolo": self.ruolo_staff,
+            "approvato_da": str(interaction.user.id)
         }
         save_data(data)
 
-        role = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
-        if role and role not in interaction.user.roles:
-            try:
-                await interaction.user.add_roles(role)
-            except Exception as e:
-                print(f"Errore ruolo: {e}")
+        # Modifica dell'embed nei Log
+        embed = interaction.message.embeds[0]
+        embed.color = discord.Color.green()
+        embed.title = "✅ IDENTIFICAZIONE STAFF APPROVATA"
+        embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
 
-        embed = discord.Embed(
-            title="✅ IDENTIFICAZIONE COMPLETATA",
-            description=f"Sei stato identificato come **{self.roblox_name.value}** ({self.grado.value}).",
-            color=discord.Color.green()
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        # Disabilita i pulsanti
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(embed=embed, view=self)
+
+        # 📌 CREAZIONE POST NEL FORUM STAFF
+        forum_channel = interaction.guild.get_channel(ID_FORUM_STAFF_IDENTIFICATI)
+        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+            member = interaction.guild.get_member(int(self.user_id))
+            nome_display = member.display_name if member else self.roblox_user
+
+            embed_forum = discord.Embed(
+                title=f"🛡️ STAFF IDENTIFICATO — {self.roblox_user}",
+                description=(
+                    f"👤 **Membro Staff:** <@{self.user_id}>\n"
+                    f"🎮 **Username Roblox:** `{self.roblox_user}`\n"
+                    f"🔢 **ID Roblox:** `{self.roblox_id}`\n"
+                    f"🎖️ **Grado Staff:** `{self.ruolo_staff}`\n\n"
+                    "✅ *Identificazione ufficiale registrata nel database di Puglia RP.*"
+                ),
+                color=discord.Color.blue(),
+                timestamp=discord.utils.utcnow()
+            )
+            embed_forum.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={self.roblox_id}&width=420&height=420&format=png")
+
+            await forum_channel.create_thread(
+                name=f"🛡️丨{self.roblox_user} ({self.ruolo_staff})",
+                embed=embed_forum
+            )
+
+        # Notifica in DM all'utente (opzionale)
+        try:
+            target_member = interaction.guild.get_member(int(self.user_id))
+            if target_member:
+                await target_member.send(f"🎉 **Complimenti!** La tua identificazione Staff come **{self.roblox_user}** è stata approvata!")
+        except Exception:
+            pass
 
 
+    @discord.ui.button(label="❌ Rifiuta", style=discord.ButtonStyle.danger, custom_id="btn_rifiuta_identificazione")
+    async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+
+        embed = interaction.message.embeds[0]
+        embed.color = discord.Color.red()
+        embed.title = "❌ IDENTIFICAZIONE STAFF RIFIUTATA"
+        embed.set_footer(text=f"Rifiutato da {interaction.user.display_name}")
+
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(embed=embed, view=self)
+
+
+# ==========================================
+# 📌 COMANDO /IDENTIFICAMI
+# ==========================================
 @bot.tree.command(name="identificami", description="Apri il modulo di identificazione Staff di Puglia RP")
 async def identificami_cmd(interaction: discord.Interaction):
-    await interaction.response.send_modal(ModalIdentificazione())
-
-
-@bot.tree.command(name="lista-staff", description="Mostra la lista di tutti i membri dello Staff identificati")
-@app_commands.checks.has_permissions(administrator=True)
-async def lista_staff_cmd(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    data = load_data()
-    users = data.get("users", {})
-
-    if not users:
-        await interaction.followup.send("⚠️ Nessun membro dello staff salvato.", ephemeral=True)
-        return
-
-    embed = discord.Embed(title="📋 LISTA STAFF REGISTRATI", color=discord.Color.blue())
-    for uid, info in users.items():
-        member = interaction.guild.get_member(int(uid))
-        mention = member.mention if member else f"ID: {uid}"
-        embed.add_field(
-            name=f"👤 {info.get('roblox_name', 'N/D')}",
-            value=f"**Discord:** {mention}\n**Grado:** {info.get('grado', 'N/D')}",
-            inline=False
-        )
-    await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-@bot.tree.command(name="revoca", description="Revoca un documento o l'identificazione Staff ad un utente (Solo Admin)")
-@app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(utente="L'utente a cui revocare", tipo="Cosa revocare")
-@app_commands.choices(tipo=[
-    app_commands.Choice(name="🆔 Identificazione Staff", value="staff"),
-    app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
-    app_commands.Choice(name="🚗 Patente A", value="patente_a"),
-    app_commands.Choice(name="🚗 Patente B", value="patente_b"),
-    app_commands.Choice(name="🚗 Patente C", value="patente_c"),
-    app_commands.Choice(name="🚗 Patente D", value="patente_d"),
-    app_commands.Choice(name="🔫 Porto d'Armi", value="armi")
-])
-async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
-    await interaction.response.defer(ephemeral=True)
-
-    user_id_str = str(utente.id)
-    data = load_data()
-
-    # 1. Revoca Identificazione Staff
-    if tipo.value == "staff":
-        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
-        if role_staff and role_staff in utente.roles:
-            try:
-                await utente.remove_roles(role_staff)
-            except Exception as e:
-                print(f"Errore rimozione ruolo staff: {e}")
-
-        if user_id_str in data.get("users", {}):
-            del data["users"][user_id_str]
-            save_data(data)
-
-        await interaction.followup.send(f"⚠️ **Identificazione Staff revocata** a {utente.mention}.", ephemeral=True)
-        return
-
-    # Helper avanzato per cercare ed eliminare il post nel Forum
-    async def elimina_post_forum(parola_chiave_tipo):
-        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        eliminati_count = 0
-        if forum and isinstance(forum, discord.ForumChannel):
-            try:
-                threads = list(forum.threads)
-                async for archived_thread in forum.archived_threads(limit=100):
-                    threads.append(archived_thread)
-
-                for thread in threads:
-                    # Verifica che il tipo di documento sia nel titolo del post
-                    if parola_chiave_tipo.lower() in thread.name.lower():
-                        # Cerca il primo messaggio inviato nel thread per verificare la menzione/ID utente
-                        async for msg in thread.history(limit=1, oldest_first=True):
-                            # Controllo tramite menzione, ID o embed
-                            trovato = False
-                            if utente.mention in msg.content or str(utente.id) in msg.content:
-                                trovato = True
-                            elif msg.embeds:
-                                embed_text = str(msg.embeds[0].to_dict())
-                                if str(utente.id) in embed_text or utente.mention in embed_text:
-                                    trovato = True
-
-                            if trovato:
-                                try:
-                                    await thread.delete()
-                                    eliminati_count += 1
-                                except Exception as e:
-                                    print(f"Errore eliminazione thread {thread.id}: {e}")
-                                break
-
-            except Exception as e:
-                print(f"Errore scansione forum: {e}")
-        return eliminati_count
-
-    # 2. Revoca Cittadinanza
-    if tipo.value == "cittadinanza":
-        ruolo_cittadino = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-        if ruolo_cittadino and ruolo_cittadino in utente.roles:
-            try:
-                await utente.remove_roles(ruolo_cittadino)
-            except Exception as e:
-                print(f"Errore rimozione ruolo cittadino: {e}")
-
-        if "cittadinanze" in data and user_id_str in data["cittadinanze"]:
-            del data["cittadinanze"][user_id_str]
-        if "rp_names" in data and user_id_str in data["rp_names"]:
-            del data["rp_names"][user_id_str]
-        save_data(data)
-
-        num_eliminati = await elimina_post_forum("Cittadinanza")
-        msg_post = f" 🗑️ **Post Cittadinanza eliminato dal Forum!**" if num_eliminati > 0 else " ⚠️ *(Nessun post trovato nel Forum per la Cittadinanza)*."
-        await interaction.followup.send(f"🚫 **Cittadinanza revocata** a {utente.mention}.{msg_post}", ephemeral=True)
-        return
-
-    # 3. Revoca Patenti
-    if tipo.value.startswith("patente_"):
-        lettera = tipo.value.split("_")[1].upper()
-        ruolo_id = RUOLI_PATENTI.get(lettera)
-        if ruolo_id:
-            ruolo_patente = interaction.guild.get_role(ruolo_id)
-            if ruolo_patente and ruolo_patente in utente.roles:
-                try:
-                    await utente.remove_roles(ruolo_patente)
-                except Exception as e:
-                    print(f"Errore revoca patente: {e}")
-
-        num_eliminati = await elimina_post_forum(f"Patente {lettera}")
-        msg_post = f" 🗑️ **Post Patente {lettera} eliminato dal Forum!**" if num_eliminati > 0 else f" ⚠️ *(Nessun post trovato per Patente {lettera})*."
-        await interaction.followup.send(f"🚫 **Patente {lettera} revocata** a {utente.mention}.{msg_post}", ephemeral=True)
-        return
-
-    # 4. Revoca Porto d'Armi
-    if tipo.value == "armi":
-        ruolo_armi = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-        if ruolo_armi and ruolo_armi in utente.roles:
-            try:
-                await utente.remove_roles(ruolo_armi)
-            except Exception as e:
-                print(f"Errore revoca porto d'armi: {e}")
-
-        num_eliminati = await elimina_post_forum("Porto d'Armi")
-        msg_post = f" 🗑️ **Post Porto d'Armi eliminato dal Forum!**" if num_eliminati > 0 else " ⚠️ *(Nessun post trovato per Porto d'Armi)*."
-        await interaction.followup.send(f"🚫 **Porto d'Armi revocato** a {utente.mention}.{msg_post}", ephemeral=True)
-        return
-
-    # 3. Revoca Patenti o Porto d'Armi
-    ruolo_da_rimuovere = None
-    if tipo.value.startswith("patente_"):
-        lettera = tipo.value.split("_")[1].upper()
-        ruolo_da_rimuovere = interaction.guild.get_role(RUOLI_PATENTI.get(lettera))
-    elif tipo.value == "armi":
-        ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-
-    if ruolo_da_rimuovere and ruolo_da_rimuovere in utente.roles:
-        try:
-            await utente.remove_roles(ruolo_da_rimuovere)
-        except Exception as e:
-            print(f"Errore revoca: {e}")
-
-    await interaction.followup.send(f"🚫 Revocato **{tipo.name}** a {utente.mention}.", ephemeral=True)
-
-# ==========================================
-# ⏱️ MODULO: GESTIONE SERVIZIO STAFF
-# ==========================================
-class VistaServizioStaff(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="🟢 Entra in Servizio", style=discord.ButtonStyle.success, custom_id="btn_start_duty")
-    async def btn_start_duty(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id_str = str(interaction.user.id)
-        duty = get_user_duty(user_id_str)
-
-        if duty.get("on_duty"):
-            await interaction.response.send_message("⚠️ Sei già in servizio!", ephemeral=True)
-            return
-
-        duty["on_duty"] = True
-        duty["last_start"] = datetime.datetime.now().timestamp()
-        update_user_duty(user_id_str, duty)
-
-        await interaction.response.send_message("🟢 **Sei entrato in Servizio Staff!** Buon lavoro.", ephemeral=True)
-
-    @discord.ui.button(label="🔴 Esci dal Servizio", style=discord.ButtonStyle.danger, custom_id="btn_stop_duty")
-    async def btn_stop_duty(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id_str = str(interaction.user.id)
-        duty = get_user_duty(user_id_str)
-
-        if not duty.get("on_duty"):
-            await interaction.response.send_message("⚠️ Non sei in servizio al momento!", ephemeral=True)
-            return
-
-        now_ts = datetime.datetime.now().timestamp()
-        session_seconds = now_ts - duty.get("last_start", now_ts)
-        duty["total_seconds"] += session_seconds
-        duty["on_duty"] = False
-        duty["last_start"] = None
-        update_user_duty(user_id_str, duty)
-
-        ore = int(session_seconds // 3600)
-        minuti = int((session_seconds % 3600) // 60)
-        await interaction.response.send_message(f"🔴 **Sei uscito dal Servizio Staff.** Turno attuale: `{ore}h {minuti}m`.", ephemeral=True)
-
-@bot.tree.command(name="leaderboard-staff", description="Visualizza la classifica settimanale delle ore Staff")
-async def leaderboard_staff_cmd(interaction: discord.Interaction):
-    data = load_data()
-    duty_data = data.get("duty", {})
-
-    if not duty_data:
-        await interaction.response.send_message("⚠️ Nessun dato presente per la classifica staff.", ephemeral=True)
-        return
-
-    sorted_staff = sorted(duty_data.items(), key=lambda x: x[1].get("total_seconds", 0), reverse=True)
-
-    embed = discord.Embed(title="🏆 CLASSIFICA ORE SERVIZIO STAFF", color=discord.Color.gold())
-    for i, (uid, info) in enumerate(sorted_staff[:10], 1):
-        member = interaction.guild.get_member(int(uid))
-        name = member.mention if member else f"ID: {uid}"
-        sec = info.get("total_seconds", 0)
-        ore = int(sec // 3600)
-        min = int((sec % 3600) // 60)
-        embed.add_field(name=f"#{i} {member.display_name if member else 'Staff'}", value=f"{name} — `{ore}h {min}m`", inline=False)
-
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_modal(ModalIdentificami())
+    
 
 # ==========================================
 # 📢 MODULO: ANNUNCI SESSIONI RP
