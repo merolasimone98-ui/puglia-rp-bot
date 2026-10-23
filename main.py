@@ -212,8 +212,6 @@ class VistaApprovazioneStaff(discord.ui.View):
         embed_orig.title = f"❌ DOCUMENTO RIFIUTATO DA {interaction.user.display_name}"
         await interaction.message.edit(embed=embed_orig, view=self)
 
-
-# --- Modale Cittadinanza ---
 # --- Modale Cittadinanza ---
 class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza"):
     nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
@@ -221,11 +219,22 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
     eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
-        
-        # Salva TUTTI i dati della Cittadinanza nel database
         data = load_data()
+        cittadinanze = data.get("cittadinanze", {})
+        ruolo_cittadino = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+
+        # 🚫 Controllo se possiede già la Cittadinanza
+        if (ruolo_cittadino and ruolo_cittadino in interaction.user.roles) or user_id_str in cittadinanze:
+            await interaction.response.send_message(
+                "⚠️ **Possiedi già la Cittadinanza Ufficiale!** Non puoi richiederne un'altra.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Salva TUTTI i dati della Cittadinanza nel database
         if "cittadinanze" not in data:
             data["cittadinanze"] = {}
             
@@ -235,7 +244,6 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
             "eta_rp": self.eta_rp.value.strip()
         }
         
-        # Manteniamo anche rp_names per compatibilità
         if "rp_names" not in data:
             data["rp_names"] = {}
         data["rp_names"][user_id_str] = self.nome_cognome.value.strip()
@@ -282,13 +290,34 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        cat_upper = self.categoria.value.strip().upper()
+
+        # 1. Controllo validità Categoria
+        if cat_upper not in ['A', 'B', 'C', 'D']:
+            await interaction.response.send_message(
+                "❌ **Categoria Non Valida!** Inserisci solo la lettera **A**, **B**, **C** oppure **D** 🏍️🚗🚛🚌.", 
+                ephemeral=True
+            )
+            return
+
+        # 🚫 2. Controllo se possiede già la Patente richiesta
+        ruolo_patente_id = RUOLI_PATENTI.get(cat_upper)
+        ruolo_patente = interaction.guild.get_role(ruolo_patente_id) if ruolo_patente_id else None
+
+        if ruolo_patente and ruolo_patente in interaction.user.roles:
+            await interaction.response.send_message(
+                f"⚠️ **Possiedi già la Patente Categoria {cat_upper}!** Non puoi richiederla nuovamente.",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer(ephemeral=True)
 
         user_id_str = str(interaction.user.id)
         data = load_data()
         cittadinanze = data.get("cittadinanze", {})
 
-        # 1. Verifico che l'utente abbia inviato la Cittadinanza
+        # 3. Verifico che l'utente abbia inviato la Cittadinanza
         if user_id_str not in cittadinanze:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
@@ -298,7 +327,7 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
 
         dati_reg = cittadinanze[user_id_str]
         
-        # 2. Controllo che Nome RP, Roblox ed Età siano IDENTICI alla Cittadinanza
+        # 4. Controllo che Nome RP, Roblox ed Età siano IDENTICI alla Cittadinanza
         nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
         roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
         eta_errata = self.eta_rp.value.strip() != dati_reg["eta_rp"]
@@ -310,15 +339,6 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
                 f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
                 f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`\n"
                 f"• **Età RP salvata:** `{dati_reg['eta_rp']} anni`",
-                ephemeral=True
-            )
-            return
-
-        # 3. Controllo Categoria Patente (A, B, C, D)
-        cat_upper = self.categoria.value.strip().upper()
-        if cat_upper not in ['A', 'B', 'C', 'D']:
-            await interaction.followup.send(
-                "❌ **Categoria Non Valida!** Inserisci solo la lettera **A**, **B**, **C** oppure **D** 🏍️🚗🚛🚌.", 
                 ephemeral=True
             )
             return
@@ -366,6 +386,15 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        # 🚫 Controllo se possiede già il Porto d'Armi
+        ruolo_armi = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+        if ruolo_armi and ruolo_armi in interaction.user.roles:
+            await interaction.response.send_message(
+                "⚠️ **Possiedi già la Licenza del Porto d'Armi!** Non puoi richiederla nuovamente.",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer(ephemeral=True)
 
         user_id_str = str(interaction.user.id)
