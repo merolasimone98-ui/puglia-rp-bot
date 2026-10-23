@@ -1240,6 +1240,54 @@ async def leaderboard_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
+# COMANDO /lista-staff (LISTA UTENTI IDENTIFICATI)
+# ==========================================
+@bot.tree.command(name="lista-staff", description="Mostra la lista di tutti i membri dello Staff identificati")
+async def lista_staff_cmd(interaction: discord.Interaction):
+    data = load_data()
+    users_data = data.get("users", {})
+
+    # Controlla se ci sono utenti registrati
+    if not users_data:
+        await interaction.response.send_message(
+            "ℹ️ **Nessun membro dello staff è attualmente identificato nel sistema.**",
+            ephemeral=True
+        )
+        return
+
+    # Creazione dell'Embed per la lista
+    embed = discord.Embed(
+        title="📋 Lista Staff Identificati - Puglia RP",
+        description=f"Totale membri identificati: **{len(users_data)}**",
+        color=discord.Color.blue()
+    )
+
+    # Scorre tutti gli utenti salvati e li aggiunge all'embed
+    for user_id, info in users_data.items():
+        discord_name = info.get("discord_name", f"<@{user_id}>")
+        roblox_name = info.get("roblox_name", "N/D")
+        rp_name = info.get("rp_name", "N/D")
+        rank = info.get("rank", "N/D")
+
+        field_value = (
+            f"👤 **Discord:** {discord_name}\name"
+            f"🎮 **Roblox:** `{roblox_name}`\n"
+            f"🎭 **Nome RP:** {rp_name}\n"
+            f"🎖️ **Grado:** {rank}"
+        )
+        
+        embed.add_field(
+            name=f"• Staff ID: {user_id}",
+            value=field_value,
+            inline=False
+        )
+
+    embed.set_footer(text="Puglia RP • Sistema Gestione Staff")
+    
+    # Invia la lista visibile a chi esegue il comando
+    await interaction.response.send_message(embed=embed)
+
+# ==========================================
 # TASK AUTOMATICO: RESET & LEADERBOARD LUNEDÌ
 # ==========================================
 @tasks.loop(time=time(0, 0, tzinfo=timezone.utc))
