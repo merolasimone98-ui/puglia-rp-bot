@@ -1397,22 +1397,6 @@ class VistaServizioStaff(discord.ui.View):
         minuti = int((session_seconds % 3600) // 60)
         await interaction.response.send_message(f"🔴 **Sei uscito dal Servizio Staff.** Turno attuale: `{ore}h {minuti}m`.", ephemeral=True)
 
-
-@bot.tree.command(name="servizio", description="Apri il tuo pannello personale di gestione Servizio Staff")
-async def servizio_cmd(interaction: discord.Interaction):
-    duty = get_user_duty(str(interaction.user.id))
-    tot_sec = duty.get("total_seconds", 0)
-    ore = int(tot_sec // 3600)
-    minuti = int((tot_sec % 3600) // 60)
-    stato = "🟢 In Servizio" if duty.get("on_duty") else "🔴 Non in Servizio"
-
-    embed = discord.Embed(title=f"🛡️ GESTIONE SERVIZIO — {interaction.user.display_name}", color=discord.Color.purple())
-    embed.add_field(name="📌 Stato Attuale", value=f"**{stato}**", inline=False)
-    embed.add_field(name="⏱️ Ore Accumulate", value=f"`{ore} ore e {minuti} minuti`", inline=False)
-
-    await interaction.response.send_message(embed=embed, view=VistaServizioStaff(), ephemeral=True)
-
-
 @bot.tree.command(name="leaderboard-staff", description="Visualizza la classifica settimanale delle ore Staff")
 async def leaderboard_staff_cmd(interaction: discord.Interaction):
     data = load_data()
