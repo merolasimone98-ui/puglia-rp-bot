@@ -214,6 +214,7 @@ class VistaApprovazioneStaff(discord.ui.View):
 
 
 # --- Modale Cittadinanza ---
+# --- Modale Cittadinanza ---
 class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza"):
     nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
     roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
@@ -223,10 +224,22 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
         await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
         
+        # Salva TUTTI i dati della Cittadinanza nel database
         data = load_data()
+        if "cittadinanze" not in data:
+            data["cittadinanze"] = {}
+            
+        data["cittadinanze"][user_id_str] = {
+            "nome_rp": self.nome_cognome.value.strip(),
+            "roblox_user": self.roblox_user.value.strip(),
+            "eta_rp": self.eta_rp.value.strip()
+        }
+        
+        # Manteniamo anche rp_names per compatibilità
         if "rp_names" not in data:
             data["rp_names"] = {}
         data["rp_names"][user_id_str] = self.nome_cognome.value.strip()
+        
         save_data(data)
 
         canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
@@ -273,29 +286,39 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
 
         user_id_str = str(interaction.user.id)
         data = load_data()
-        rp_names = data.get("rp_names", {})
+        cittadinanze = data.get("cittadinanze", {})
 
-        if user_id_str not in rp_names:
+        # 1. Verifico che l'utente abbia inviato la Cittadinanza
+        if user_id_str not in cittadinanze:
             await interaction.followup.send(
-                "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** 📜.",
+                "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
                 ephemeral=True
             )
             return
 
-        nome_registrato = rp_names[user_id_str].lower()
-        nome_inserito = self.nome_cognome.value.strip().lower()
+        dati_reg = cittadinanze[user_id_str]
+        
+        # 2. Controllo che Nome RP, Roblox ed Età siano IDENTICI alla Cittadinanza
+        nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
+        roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
+        eta_errata = self.eta_rp.value.strip() != dati_reg["eta_rp"]
 
-        if nome_inserito != nome_registrato:
+        if nome_errato or roblox_errato or eta_errata:
             await interaction.followup.send(
-                f"🚫 **Nome RP Errato!**\nIl nome inserito (`{self.nome_cognome.value}`) non corrisponde a quello della tua Cittadinanza (`{rp_names[user_id_str]}`) 🧟‍♂️.",
+                "❌ **Dati non corrispondenti alla Cittadinanza!**\n"
+                "I dati inseriti devono essere **identici** a quelli inviati nella tua Cittadinanza Ufficiale:\n"
+                f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
+                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`\n"
+                f"• **Età RP salvata:** `{dati_reg['eta_rp']} anni`",
                 ephemeral=True
             )
             return
 
+        # 3. Controllo Categoria Patente (A, B, C, D)
         cat_upper = self.categoria.value.strip().upper()
         if cat_upper not in ['A', 'B', 'C', 'D']:
             await interaction.followup.send(
-                "❌ **Categoria Non Valida!** Puoi inserire solo una tra queste categorie: **A**, **B**, **C** o **D** 🏍️🚗🚛🚌.", 
+                "❌ **Categoria Non Valida!** Inserisci solo la lettera **A**, **B**, **C** oppure **D** 🏍️🚗🚛🚌.", 
                 ephemeral=True
             )
             return
@@ -347,21 +370,30 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
 
         user_id_str = str(interaction.user.id)
         data = load_data()
-        rp_names = data.get("rp_names", {})
+        cittadinanze = data.get("cittadinanze", {})
 
-        if user_id_str not in rp_names:
+        # 1. Verifico che l'utente abbia inviato la Cittadinanza
+        if user_id_str not in cittadinanze:
             await interaction.followup.send(
-                "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** 📜.",
+                "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
                 ephemeral=True
             )
             return
 
-        nome_registrato = rp_names[user_id_str].lower()
-        nome_inserito = self.nome_cognome.value.strip().lower()
+        dati_reg = cittadinanze[user_id_str]
+        
+        # 2. Controllo che Nome RP, Roblox ed Età siano IDENTICI alla Cittadinanza
+        nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
+        roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
+        eta_errata = self.eta_rp.value.strip() != dati_reg["eta_rp"]
 
-        if nome_inserito != nome_registrato:
+        if nome_errato or roblox_errato or eta_errata:
             await interaction.followup.send(
-                f"🚫 **Nome RP Errato!**\nIl nome inserito (`{self.nome_cognome.value}`) non corrisponde a quello della tua Cittadinanza (`{rp_names[user_id_str]}`) 🧟‍♂️.",
+                "❌ **Dati non corrispondenti alla Cittadinanza!**\n"
+                "I dati inseriti devono essere **identici** a quelli inviati nella tua Cittadinanza Ufficiale:\n"
+                f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
+                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`\n"
+                f"• **Età RP salvata:** `{dati_reg['eta_rp']} anni`",
                 ephemeral=True
             )
             return
