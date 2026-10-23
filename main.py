@@ -1405,7 +1405,7 @@ async def deposita_cmd(interaction: discord.Interaction, importo: int):
     )
 
 
-# --- COMANDO /paga ---
+# --- COMANDO /paga (PRIVATO / EFFIMERO) ---
 @bot.tree.command(name="paga", description="Paga o dai contanti ad un altro cittadino in RP")
 @app_commands.describe(
     destinatario="Cittadino a cui dare i contanti",
@@ -1438,11 +1438,13 @@ async def paga_cmd(interaction: discord.Interaction, destinatario: discord.Membe
 
     embed = discord.Embed(
         title="🤝 TRANSAZIONE IN CONTANTI",
-        description=f"{interaction.user.mention} ha consegnato **€ {importo:,}** in contanti a {destinatario.mention}.",
+        description=f"Hai consegnato con successo **€ {importo:,}** in contanti a {destinatario.mention}.",
         color=discord.Color.green(),
         timestamp=discord.utils.utcnow()
     )
-    await interaction.response.send_message(embed=embed)
+    
+    # Invia il messaggio impostando ephemeral=True così lo vede solo chi usa il comando
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # --- COMANDO /aggiungi-soldi (ADMIN ONLY) ---
