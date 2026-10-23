@@ -113,8 +113,105 @@ def update_user_duty(user_id_str, duty_data):
     save_data(data)
 
 # ==========================================
-# 🎃 MODULO: PANNELLO DOCUMENTI (HALLOWEEN EDITION)
+# 🎃 MODULO: PANNELLO DOCUMENTI (CON APPROVAZIONE STAFF)
 # ==========================================
+ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
+
+# --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
+class VistaApprovazioneStaff(discord.ui.View):
+    def __init__(self, tipo_documento, nome_rp, roblox_user, eta_rp, cat_patente=None, motivazione=None, target_user_id=None):
+        super().__init__(timeout=None)
+        self.tipo_documento = tipo_documento
+        self.nome_rp = nome_rp
+        self.roblox_user = roblox_user
+        self.eta_rp = eta_rp
+        self.cat_patente = cat_patente
+        self.motivazione = motivazione
+        self.target_user_id = target_user_id
+
+    @discord.ui.button(label="Accetta Documento", style=discord.ButtonStyle.success, emoji="🟢", custom_id="btn_accetta_doc")
+    async def btn_accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Controllo Staff Base / Admin
+        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
+        if role_staff not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ **Solo lo Staff può accettare i documenti!**", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        # 1. Invia la richiesta approvata nel Forum Documenti
+        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+        target_member = interaction.guild.get_member(self.target_user_id)
+        mention_str = target_member.mention if target_member else f"<@{self.target_user_id}>"
+
+        if forum and isinstance(forum, discord.ForumChannel):
+            embed_forum = discord.Embed(
+                title=f"📑 DOCUMENTO APPROVATO: {self.tipo_documento.upper()}",
+                color=discord.Color.green(),
+                timestamp=discord.utils.utcnow()
+            )
+            embed_forum.add_field(name="👤 Utente Discord", value=mention_str, inline=True)
+            embed_forum.add_field(name="📜 Nome RP", value=f"`{self.nome_rp}`", inline=True)
+            embed_forum.add_field(name="🎮 Roblox", value=f"`{self.roblox_user}`", inline=True)
+            embed_forum.add_field(name="🎂 Età RP", value=f"`{self.eta_rp} anni`", inline=True)
+            embed_forum.add_field(name="👮 Approvato da", value=interaction.user.mention, inline=False)
+
+            if self.cat_patente:
+                embed_forum.add_field(name="🚗 Categoria", value=f"**Patente {self.cat_patente}**", inline=False)
+            if self.motivazione:
+                embed_forum.add_field(name="📋 Motivazione", value=f"```\n{self.motivazione}\n```", inline=False)
+
+            titolo_post = f"✅ [{self.tipo_documento}] {self.nome_rp}"
+            try:
+                await forum.create_thread(name=titolo_post, embed=embed_forum)
+            except Exception as e:
+                print(f"Errore creazione post forum: {e}")
+
+        # 2. Assegnazione automatica del ruolo
+        if target_member:
+            try:
+                if self.tipo_documento == "Cittadinanza":
+                    ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+                    if ruolo: await target_member.add_roles(ruolo)
+                elif self.tipo_documento.startswith("Patente") and self.cat_patente:
+                    ruolo_id = RUOLI_PATENTI.get(self.cat_patente)
+                    if ruolo_id:
+                        ruolo = interaction.guild.get_role(ruolo_id)
+                        if ruolo: await target_member.add_roles(ruolo)
+                elif self.tipo_documento == "Porto d'Armi":
+                    ruolo = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+                    if ruolo: await target_member.add_roles(ruolo)
+            except Exception as e:
+                print(f"Errore aggiunta ruolo: {e}")
+
+        # 3. Disabilita i bottoni e aggiorna il messaggio nel canale staff
+        for child in self.children:
+            child.disabled = True
+
+        embed_orig = interaction.message.embeds[0]
+        embed_orig.color = discord.Color.green()
+        embed_orig.title = f"✅ DOCUMENTO ACCETTATO DA {interaction.user.display_name}"
+        await interaction.message.edit(embed=embed_orig, view=self)
+
+
+    @discord.ui.button(label="Rifiuta Documento", style=discord.ButtonStyle.danger, emoji="🔴", custom_id="btn_rifiuta_doc")
+    async def btn_rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
+        if role_staff not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ **Solo lo Staff può rifiutare i documenti!**", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        # Disabilita bottoni e aggiorna stato
+        for child in self.children:
+            child.disabled = True
+
+        embed_orig = interaction.message.embeds[0]
+        embed_orig.color = discord.Color.red()
+        embed_orig.title = f"❌ DOCUMENTO RIFIUTATO DA {interaction.user.display_name}"
+        await interaction.message.edit(embed=embed_orig, view=self)
+
 
 # --- Modale Cittadinanza ---
 class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza"):
@@ -132,14 +229,14 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
         data["rp_names"][user_id_str] = self.nome_cognome.value.strip()
         save_data(data)
 
-        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        if not forum or not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ **Errore:** Canale Forum documenti non trovato!", ephemeral=True)
+        canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
+        if not canale_staff:
+            await interaction.followup.send("❌ **Errore:** Canale staff per l'approvazione non trovato!", ephemeral=True)
             return
 
         embed = discord.Embed(
-            title="🎃 NUOVA RICHIESTA: CITTADINANZA UFFICIALE 👻",
-            color=discord.Color.from_rgb(230, 126, 34),
+            title="📥 NUOVA RICHIESTA: CITTADINANZA",
+            color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
@@ -147,13 +244,16 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
         embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
         embed.add_field(name="🎂 Età RP", value=f"`{self.eta_rp.value} anni`", inline=True)
 
-        titolo_post = f"🎃 [Cittadinanza] {self.nome_cognome.value} (@{interaction.user.name})"
-        
-        try:
-            await forum.create_thread(name=titolo_post, embed=embed)
-            await interaction.followup.send("🎃 **Richiesta di Cittadinanza inviata con successo all'Anagrafe!** 👻", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
+        view_staff = VistaApprovazioneStaff(
+            tipo_documento="Cittadinanza",
+            nome_rp=self.nome_cognome.value,
+            roblox_user=self.roblox_user.value,
+            eta_rp=self.eta_rp.value,
+            target_user_id=interaction.user.id
+        )
+
+        await canale_staff.send(embed=embed, view=view_staff)
+        await interaction.followup.send("🎃 **Richiesta di Cittadinanza inviata allo Staff per la revisione!** 👻", ephemeral=True)
 
 
 # --- Modale Patente ---
@@ -175,7 +275,6 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
         data = load_data()
         rp_names = data.get("rp_names", {})
 
-        # 1. Controllo Cittadinanza
         if user_id_str not in rp_names:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** 📜.",
@@ -183,7 +282,6 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        # 2. Controllo Nome RP
         nome_registrato = rp_names[user_id_str].lower()
         nome_inserito = self.nome_cognome.value.strip().lower()
 
@@ -194,7 +292,6 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        # 3. Controllo Categoria Patente
         cat_upper = self.categoria.value.strip().upper()
         if cat_upper not in ['A', 'B', 'C', 'D']:
             await interaction.followup.send(
@@ -203,29 +300,33 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        if not forum or not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ **Errore:** Canale Forum documenti non trovato!", ephemeral=True)
+        canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
+        if not canale_staff:
+            await interaction.followup.send("❌ **Errore:** Canale staff per l'approvazione non trovato!", ephemeral=True)
             return
 
         embed = discord.Embed(
-            title=f"🏎️ NUOVA RICHIESTA: PATENTE {cat_upper} 🧟‍♂️",
-            color=discord.Color.dark_green(),
+            title=f"📥 NUOVA RICHIESTA: PATENTE {cat_upper}",
+            color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
         embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
         embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
         embed.add_field(name="🎂 Età RP", value=f"`{self.eta_rp.value} anni`", inline=True)
-        embed.add_field(name="🛞 Categoria Patente", value=f"**Patente Categoria {cat_upper}** 🏎️", inline=False)
+        embed.add_field(name="🛞 Categoria", value=f"**Patente {cat_upper}**", inline=False)
 
-        titolo_post = f"🏎️ [Patente {cat_upper}] {self.nome_cognome.value} (@{interaction.user.name})"
-        
-        try:
-            await forum.create_thread(name=titolo_post, embed=embed)
-            await interaction.followup.send(f"🧟 **Richiesta per la Patente {cat_upper} inviata con successo alla Motorizzazione!** 🏁", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
+        view_staff = VistaApprovazioneStaff(
+            tipo_documento=f"Patente {cat_upper}",
+            nome_rp=self.nome_cognome.value,
+            roblox_user=self.roblox_user.value,
+            eta_rp=self.eta_rp.value,
+            cat_patente=cat_upper,
+            target_user_id=interaction.user.id
+        )
+
+        await canale_staff.send(embed=embed, view=view_staff)
+        await interaction.followup.send(f"🧟 **Richiesta per la Patente {cat_upper} inviata allo Staff per l'approvazione!** 🏁", ephemeral=True)
 
 
 # --- Modale Porto d'Armi ---
@@ -265,14 +366,14 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
             )
             return
 
-        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        if not forum or not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ **Errore:** Canale Forum documenti non trovato!", ephemeral=True)
+        canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
+        if not canale_staff:
+            await interaction.followup.send("❌ **Errore:** Canale staff per l'approvazione non trovato!", ephemeral=True)
             return
 
         embed = discord.Embed(
-            title="🪦 NUOVA RICHIESTA: PORTO D'ARMI LEGALE 🔫",
-            color=discord.Color.dark_red(),
+            title="📥 NUOVA RICHIESTA: PORTO D'ARMI",
+            color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
@@ -281,13 +382,17 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
         embed.add_field(name="🎂 Età RP", value=f"`{self.eta_rp.value} anni`", inline=True)
         embed.add_field(name="📋 Motivazione RP", value=f"```\n{self.motivazione.value}\n```", inline=False)
 
-        titolo_post = f"🔫 [Porto d'Armi] {self.nome_cognome.value} (@{interaction.user.name})"
-        
-        try:
-            await forum.create_thread(name=titolo_post, embed=embed)
-            await interaction.followup.send("🩸 **Richiesta di Porto d'Armi inviata con successo al Dipartimento!** 🗡️", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
+        view_staff = VistaApprovazioneStaff(
+            tipo_documento="Porto d'Armi",
+            nome_rp=self.nome_cognome.value,
+            roblox_user=self.roblox_user.value,
+            eta_rp=self.eta_rp.value,
+            motivazione=self.motivazione.value,
+            target_user_id=interaction.user.id
+        )
+
+        await canale_staff.send(embed=embed, view=view_staff)
+        await interaction.followup.send("🩸 **Richiesta di Porto d'Armi inviata allo Staff per l'approvazione!** 🗡️", ephemeral=True)
 
 
 # --- Vista dei Pulsanti ---
