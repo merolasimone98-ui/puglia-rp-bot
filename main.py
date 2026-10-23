@@ -1082,28 +1082,6 @@ async def arresta_cmd(interaction: discord.Interaction, utente: discord.Member, 
     await canale_arresti.send(embed=embed)
     await interaction.followup.send(f"✅ Arresto registrato per {utente.mention}.", ephemeral=True)
 
-
-@bot.tree.command(name="multa", description="Emetti una sanzione pecuniaria (multa) a un utente")
-@app_commands.describe(utente="L'utente da multare", importo="Importo sanzione", motivo="Motivazione della multa")
-async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int, motivo: str):
-    await interaction.response.defer(ephemeral=True)
-    canale_multe = interaction.guild.get_channel(ID_CANALE_REGISTRO_MULTE)
-    if not canale_multe:
-        await interaction.followup.send("❌ Canale registro multe non trovato!", ephemeral=True)
-        return
-
-    embed = discord.Embed(title="💸 NOTIFICA DI SANZIONE / MULTA — PUGLIA RP", color=discord.Color.orange(), timestamp=discord.utils.utcnow())
-    embed.add_field(name="👤 Sanzionato", value=utente.mention, inline=True)
-    embed.add_field(name="👮 Emessa da", value=interaction.user.mention, inline=True)
-    embed.add_field(name="💰 Importo", value=f"**€ {importo:,}**", inline=False)
-    embed.add_field(name="📋 Motivazione", value=f"```{motivo}```", inline=False)
-
-    if utente.display_avatar:
-        embed.set_thumbnail(url=utente.display_avatar.url)
-
-    await canale_multe.send(embed=embed)
-    await interaction.followup.send(f"✅ Multa di **€ {importo}** emessa a {utente.mention}.", ephemeral=True)
-
 # ==========================================
 # 👥 MODULO: LISTA PLAYER (STAFF)
 # ==========================================
