@@ -532,9 +532,6 @@ async def pannello_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=VistaPannelloDocumenti())
 
 # ==========================================
-# 💳 MODULO: ECONOMIA & BANCA
-# ==========================================
-# ==========================================
 # 💳 MODULO: ECONOMIA, BANCA & MULTE
 # ==========================================
 
