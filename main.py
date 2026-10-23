@@ -119,14 +119,12 @@ nomi_rp_registrati = {}
 # ==========================================
 # 📜 MODULO 1 : PANNELLO DOCUMENTI (HALLOWEEN EDITION)
 # ==========================================
-class ModalDocumenti(discord.ui.Modal, title="📋 Richiesta Documenti - Puglia RP"):
+
+# --- Modale per Cittadinanza ---
+class ModalCittadinanza(discord.ui.Modal, title="🇮🇹 Richiesta Cittadinanza - Puglia RP"):
     nome_cognome = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
     roblox_user = discord.ui.TextInput(label="Username Roblox", placeholder="Es. MarioRoblox123", required=True)
     eta_rp = discord.ui.TextInput(label="Età RP", placeholder="Es. 25", required=True)
-
-    def __init__(self, tipo_documento):
-        super().__init__()
-        self.tipo_documento = tipo_documento
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -137,7 +135,7 @@ class ModalDocumenti(discord.ui.Modal, title="📋 Richiesta Documenti - Puglia 
             return
 
         embed = discord.Embed(
-            title=f"📑 NUOVA RICHIESTA: {self.tipo_documento.upper()}",
+            title="📑 NUOVA RICHIESTA: CITTADINANZA",
             color=discord.Color.from_rgb(230, 126, 34),
             timestamp=discord.utils.utcnow()
         )
@@ -145,32 +143,122 @@ class ModalDocumenti(discord.ui.Modal, title="📋 Richiesta Documenti - Puglia 
         embed.add_field(name="📛 Nome RP", value=self.nome_cognome.value, inline=True)
         embed.add_field(name="🎮 Roblox", value=self.roblox_user.value, inline=True)
         embed.add_field(name="🎂 Età RP", value=self.eta_rp.value, inline=True)
-        embed.add_field(name="📜 Tipo Documento", value=self.tipo_documento, inline=False)
 
-        titolo_post = f"📄 [{self.tipo_documento}] {self.nome_cognome.value} (@{interaction.user.name})"
+        titolo_post = f"📄 [Cittadinanza] {self.nome_cognome.value} (@{interaction.user.name})"
         
         try:
             await forum.create_thread(name=titolo_post, embed=embed)
-            await interaction.followup.send(f"✅ Richiesta per **{self.tipo_documento}** inviata con successo nel Forum!", ephemeral=True)
+            await interaction.followup.send("✅ Richiesta per **Cittadinanza** inviata con successo nel Forum!", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
 
 
+# --- Modale per Patenti (con controllo A, B, C, D) ---
+class ModalPatente(discord.ui.Modal, title="🏎️ Richiesta Patente - Puglia RP"):
+    nome_cognome = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
+    roblox_user = discord.ui.TextInput(label="Username Roblox", placeholder="Es. MarioRoblox123", required=True)
+    eta_rp = discord.ui.TextInput(label="Età RP", placeholder="Es. 25", required=True)
+    categoria = discord.ui.TextInput(
+        label="Categoria Patente (Scrivi solo: A, B, C o D)", 
+        placeholder="A, B, C oppure D", 
+        max_length=1, 
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        cat_upper = self.categoria.value.strip().upper()
+
+        # Controllo che sia inserita solo A, B, C o D
+        if cat_upper not in ['A', 'B', 'C', 'D']:
+            await interaction.response.send_message(
+                "❌ **Categoria non valida!** Puoi inserire unicamente la lettera **A**, **B**, **C** o **D**.", 
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+
+        if not forum or not isinstance(forum, discord.ForumChannel):
+            await interaction.followup.send("❌ Errore: Forum documenti non trovato.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"📑 NUOVA RICHIESTA: PATENTE {cat_upper}",
+            color=discord.Color.from_rgb(230, 126, 34),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
+        embed.add_field(name="📛 Nome RP", value=self.nome_cognome.value, inline=True)
+        embed.add_field(name="🎮 Roblox", value=self.roblox_user.value, inline=True)
+        embed.add_field(name="🎂 Età RP", value=self.eta_rp.value, inline=True)
+        embed.add_field(name="🚗 Categoria Patente", value=f"**Patente {cat_upper}**", inline=False)
+
+        titolo_post = f"📄 [Patente {cat_upper}] {self.nome_cognome.value} (@{interaction.user.name})"
+        
+        try:
+            await forum.create_thread(name=titolo_post, embed=embed)
+            await interaction.followup.send(f"✅ Richiesta per **Patente {cat_upper}** inviata con successo nel Forum!", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
+
+
+# --- Modale per Porto d'Armi (con Motivazione) ---
+class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi - Puglia RP"):
+    nome_cognome = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
+    roblox_user = discord.ui.TextInput(label="Username Roblox", placeholder="Es. MarioRoblox123", required=True)
+    eta_rp = discord.ui.TextInput(label="Età RP", placeholder="Es. 25", required=True)
+    motivazione = discord.ui.TextInput(
+        label="Motivazione Richiesta", 
+        style=discord.TextStyle.paragraph, 
+        placeholder="Spiega dettagliatamente il motivo della richiesta...", 
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+
+        if not forum or not isinstance(forum, discord.ForumChannel):
+            await interaction.followup.send("❌ Errore: Forum documenti non trovato.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="📑 NUOVA RICHIESTA: PORTO D'ARMI",
+            color=discord.Color.from_rgb(230, 126, 34),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
+        embed.add_field(name="📛 Nome RP", value=self.nome_cognome.value, inline=True)
+        embed.add_field(name="🎮 Roblox", value=self.roblox_user.value, inline=True)
+        embed.add_field(name="🎂 Età RP", value=self.eta_rp.value, inline=True)
+        embed.add_field(name="📋 Motivazione", value=f"```{self.motivazione.value}```", inline=False)
+
+        titolo_post = f"📄 [Porto d'Armi] {self.nome_cognome.value} (@{interaction.user.name})"
+        
+        try:
+            await forum.create_thread(name=titolo_post, embed=embed)
+            await interaction.followup.send("✅ Richiesta per **Porto d'Armi** inviata con successo nel Forum!", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
+
+
+# --- Vista dei Pulsanti ---
 class VistaPannelloDocumenti(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Richiedi Cittadinanza", style=discord.ButtonStyle.primary, custom_id="btn_cittadinanza")
     async def btn_cittadinanza(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ModalDocumenti(tipo_documento="Cittadinanza"))
+        await interaction.response.send_modal(ModalCittadinanza())
 
     @discord.ui.button(label="Richiedi Patente (A/B/C/D)", style=discord.ButtonStyle.secondary, emoji="🏎️", custom_id="btn_patente")
     async def btn_patente(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ModalDocumenti(tipo_documento="Patente di Guida"))
+        await interaction.response.send_modal(ModalPatente())
 
     @discord.ui.button(label="Porto d'Armi", style=discord.ButtonStyle.danger, emoji="🔫", custom_id="btn_armi")
     async def btn_armi(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ModalDocumenti(tipo_documento="Porto d'Armi"))
+        await interaction.response.send_modal(ModalPortoDArmi())
 
 
 @bot.tree.command(name="pannello", description="Manda il pannello principale per i documenti (Halloween Edition)")
