@@ -555,7 +555,7 @@ class ViewGestioneGenerica(discord.ui.View):
 # ==========================================
 # 🚨 SISTEMA REVOCA DOCUMENTI / STAFF (ADMIN ONLY)
 # ==========================================
-@bot.tree.command(name="revoca", description="Revoca un documento o l'identificazione Staff a un utente")
+@bot.tree.command(name="revoca-documento", description="Revoca un documento o l'identificazione Staff a un utente")
 @app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
     utente="L'utente a cui revocare il documento/identificazione",
