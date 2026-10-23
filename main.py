@@ -97,4 +97,4 @@ class ViewApprovazioneRichiestaDocumento(discord.ui.View):
         if not any(
             ruolo.id == ID_RUOLO_APPROVA_DOCUMENTO
             for ruolo in membro.roles
-        ):... 
+        ):... (39 KB rimanenti)
