@@ -802,32 +802,6 @@ async def sessione(interaction: discord.Interaction, codice: str, banner: str = 
     )
     
 # --- COMANDO /sessione ---
-@bot.tree.command(name="sessione", description="Gestisci lo stato della sessione RP")
-@app_commands.choices(stato=[
-    app_commands.Choice(name="Online", value="online"),
-    app_commands.Choice(name="Offline", value="offline")
-])
-async def sessione(interaction: discord.Interaction, stato: app_commands.Choice[str]):
-    if stato.value == "online":
-        embed = discord.Embed(
-            title="🔴 SESSIONE ROLEPLAY ONLINE",
-            description="La sessione di Roleplay su **Puglia RP** è ufficialmente **APERTA**!\n\nEntrate nel server e rispettate il regolamento.",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="🌐 Gioco", value="Emergency Hamburg", inline=True)
-        embed.add_field(name="📢 Stato", value="ONLINE", inline=True)
-        embed.set_footer(text="Puglia RP • Buon Roleplay!")
-    else:
-        embed = discord.Embed(
-            title="⚪ SESSIONE ROLEPLAY OFFLINE",
-            description="La sessione di Roleplay su **Puglia RP** è ufficialmente **CONCLUSA**.\n\nGrazie a tutti per aver partecipato!",
-            color=discord.Color.red()
-        )
-        embed.add_field(name="📢 Stato", value="OFFLINE", inline=True)
-        embed.set_footer(text="Puglia RP • Ci vediamo alla prossima!")
-
-    await interaction.response.send_message(embed=embed)
-
 # --- COMANDO /sessione-offline ---
 @bot.tree.command(name="sessione-offline", description="Manda direttamente l'annuncio di sessione offline")
 async def sessione_offline(interaction: discord.Interaction):
@@ -840,7 +814,7 @@ async def sessione_offline(interaction: discord.Interaction):
     embed.set_footer(text="Puglia RP • Restate sintonizzati per la prossima apertura!")
 
     await interaction.response.send_message(embed=embed)
-     
+    
 import os
 
 TOKEN = os.getenv('DISCORD_TOKEN')
