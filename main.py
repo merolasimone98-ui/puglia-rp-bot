@@ -118,20 +118,23 @@ def update_user_duty(user_id_str, duty_data):
 ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
 
 # --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
+# --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
 class VistaApprovazioneStaff(discord.ui.View):
-    def __init__(self, tipo_documento, nome_rp, roblox_user, eta_rp, cat_patente=None, motivazione=None, target_user_id=None):
+    def __init__(self, tipo_documento, nome_rp, roblox_user, eta_rp=None, cat_patente=None, modello_veicolo=None, targa_veicolo=None, tipo_arma=None, motivazione=None, target_user_id=None):
         super().__init__(timeout=None)
         self.tipo_documento = tipo_documento
         self.nome_rp = nome_rp
         self.roblox_user = roblox_user
         self.eta_rp = eta_rp
         self.cat_patente = cat_patente
+        self.modello_veicolo = modello_veicolo
+        self.targa_veicolo = targa_veicolo
+        self.tipo_arma = tipo_arma
         self.motivazione = motivazione
         self.target_user_id = target_user_id
 
     @discord.ui.button(label="Accetta Documento", style=discord.ButtonStyle.success, emoji="🟢", custom_id="btn_accetta_doc")
     async def btn_accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Controllo Staff Base / Admin
         role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
         if role_staff not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("❌ **Solo lo Staff può accettare i documenti!**", ephemeral=True)
@@ -139,7 +142,6 @@ class VistaApprovazioneStaff(discord.ui.View):
 
         await interaction.response.defer()
 
-        # 1. Invia la richiesta approvata nel Forum Documenti
         forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
         target_member = interaction.guild.get_member(self.target_user_id)
         mention_str = target_member.mention if target_member else f"<@{self.target_user_id}>"
@@ -153,13 +155,21 @@ class VistaApprovazioneStaff(discord.ui.View):
             embed_forum.add_field(name="👤 Utente Discord", value=mention_str, inline=True)
             embed_forum.add_field(name="📜 Nome RP", value=f"`{self.nome_rp}`", inline=True)
             embed_forum.add_field(name="🎮 Roblox", value=f"`{self.roblox_user}`", inline=True)
-            embed_forum.add_field(name="🎂 Età RP", value=f"`{self.eta_rp} anni`", inline=True)
-            embed_forum.add_field(name="👮 Approvato da", value=interaction.user.mention, inline=False)
-
+            if self.eta_rp:
+                embed_forum.add_field(name="🎂 Età RP", value=f"`{self.eta_rp} anni`", inline=True)
+            
             if self.cat_patente:
-                embed_forum.add_field(name="🚗 Categoria", value=f"**Patente {self.cat_patente}**", inline=False)
+                embed_forum.add_field(name="🚗 Categoria", value=f"**Patente {self.cat_patente}**", inline=True)
+            if self.modello_veicolo:
+                embed_forum.add_field(name="🚘 Modello Veicolo", value=f"`{self.modello_veicolo}`", inline=True)
+            if self.targa_veicolo:
+                embed_forum.add_field(name="🔢 Targa Veicolo", value=f"`{self.targa_veicolo}`", inline=True)
+            if self.tipo_arma:
+                embed_forum.add_field(name="🔫 Tipo di Arma", value=f"`{self.tipo_arma}`", inline=True)
             if self.motivazione:
                 embed_forum.add_field(name="📋 Motivazione", value=f"```\n{self.motivazione}\n```", inline=False)
+
+            embed_forum.add_field(name="👮 Approvato da", value=interaction.user.mention, inline=False)
 
             titolo_post = f"✅ [{self.tipo_documento}] {self.nome_rp}"
             try:
@@ -167,7 +177,7 @@ class VistaApprovazioneStaff(discord.ui.View):
             except Exception as e:
                 print(f"Errore creazione post forum: {e}")
 
-        # 2. Assegnazione automatica del ruolo
+        # Assegnazione automatica del ruolo
         if target_member:
             try:
                 if self.tipo_documento == "Cittadinanza":
@@ -184,7 +194,6 @@ class VistaApprovazioneStaff(discord.ui.View):
             except Exception as e:
                 print(f"Errore aggiunta ruolo: {e}")
 
-        # 3. Disabilita i bottoni e aggiorna il messaggio nel canale staff
         for child in self.children:
             child.disabled = True
 
@@ -192,7 +201,6 @@ class VistaApprovazioneStaff(discord.ui.View):
         embed_orig.color = discord.Color.green()
         embed_orig.title = f"✅ DOCUMENTO ACCETTATO DA {interaction.user.display_name}"
         await interaction.message.edit(embed=embed_orig, view=self)
-
 
     @discord.ui.button(label="Rifiuta Documento", style=discord.ButtonStyle.danger, emoji="🔴", custom_id="btn_rifiuta_doc")
     async def btn_rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -203,7 +211,6 @@ class VistaApprovazioneStaff(discord.ui.View):
 
         await interaction.response.defer()
 
-        # Disabilita bottoni e aggiorna stato
         for child in self.children:
             child.disabled = True
 
@@ -277,22 +284,22 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
         await interaction.followup.send("🎃 **Richiesta di Cittadinanza inviata allo Staff per la revisione!** 👻", ephemeral=True)
 
 
-# --- Modale Patente ---
+# --- Modale Patente (Con Modello e Targa) ---
 class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale"):
     nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
     roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
     categoria = discord.ui.TextInput(
         label="🚗 Categoria Patente (A, B, C o D)", 
         placeholder="A, B, C oppure D", 
         max_length=1, 
         required=True
     )
+    modello_veicolo = discord.ui.TextInput(label="🚘 Modello Veicolo", placeholder="Es. Wolfsburg Marin", required=True, max_length=40)
+    targa_veicolo = discord.ui.TextInput(label="🔢 Targa Veicolo", placeholder="Es. AB/CD/10", required=True, max_length=15)
 
     async def on_submit(self, interaction: discord.Interaction):
         cat_upper = self.categoria.value.strip().upper()
 
-        # 1. Controllo validità Categoria
         if cat_upper not in ['A', 'B', 'C', 'D']:
             await interaction.response.send_message(
                 "❌ **Categoria Non Valida!** Inserisci solo la lettera **A**, **B**, **C** oppure **D** 🏍️🚗🚛🚌.", 
@@ -300,7 +307,6 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        # 🚫 2. Controllo se possiede già la Patente richiesta
         ruolo_patente_id = RUOLI_PATENTI.get(cat_upper)
         ruolo_patente = interaction.guild.get_role(ruolo_patente_id) if ruolo_patente_id else None
 
@@ -317,7 +323,6 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
         data = load_data()
         cittadinanze = data.get("cittadinanze", {})
 
-        # 3. Verifico che l'utente abbia inviato la Cittadinanza
         if user_id_str not in cittadinanze:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
@@ -327,18 +332,15 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
 
         dati_reg = cittadinanze[user_id_str]
         
-        # 4. Controllo che Nome RP, Roblox ed Età siano IDENTICI alla Cittadinanza
         nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
         roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
-        eta_errata = self.eta_rp.value.strip() != dati_reg["eta_rp"]
 
-        if nome_errato or roblox_errato or eta_errata:
+        if nome_errato or roblox_errato:
             await interaction.followup.send(
                 "❌ **Dati non corrispondenti alla Cittadinanza!**\n"
                 "I dati inseriti devono essere **identici** a quelli inviati nella tua Cittadinanza Ufficiale:\n"
                 f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
-                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`\n"
-                f"• **Età RP salvata:** `{dati_reg['eta_rp']} anni`",
+                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`",
                 ephemeral=True
             )
             return
@@ -356,15 +358,17 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
         embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
         embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
-        embed.add_field(name="🎂 Età RP", value=f"`{self.eta_rp.value} anni`", inline=True)
-        embed.add_field(name="🛞 Categoria", value=f"**Patente {cat_upper}**", inline=False)
+        embed.add_field(name="🛞 Categoria", value=f"**Patente {cat_upper}**", inline=True)
+        embed.add_field(name="🚘 Modello Veicolo", value=f"`{self.modello_veicolo.value}`", inline=True)
+        embed.add_field(name="🔢 Targa Veicolo", value=f"`{self.targa_veicolo.value}`", inline=True)
 
         view_staff = VistaApprovazioneStaff(
             tipo_documento=f"Patente {cat_upper}",
             nome_rp=self.nome_cognome.value,
             roblox_user=self.roblox_user.value,
-            eta_rp=self.eta_rp.value,
             cat_patente=cat_upper,
+            modello_veicolo=self.modello_veicolo.value,
+            targa_veicolo=self.targa_veicolo.value,
             target_user_id=interaction.user.id
         )
 
@@ -372,11 +376,11 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
         await interaction.followup.send(f"🧟 **Richiesta per la Patente {cat_upper} inviata allo Staff per l'approvazione!** 🏁", ephemeral=True)
 
 
-# --- Modale Porto d'Armi ---
+# --- Modale Porto d'Armi (Con Tipo di Arma) ---
 class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"):
     nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
     roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
+    tipo_arma = discord.ui.TextInput(label="🔫 Tipo di Arma", placeholder="Es. Glock-17", required=True, max_length=40)
     motivazione = discord.ui.TextInput(
         label="📋 Motivazione della Richiesta", 
         style=discord.TextStyle.paragraph, 
@@ -386,7 +390,6 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # 🚫 Controllo se possiede già il Porto d'Armi
         ruolo_armi = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
         if ruolo_armi and ruolo_armi in interaction.user.roles:
             await interaction.response.send_message(
@@ -401,7 +404,6 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
         data = load_data()
         cittadinanze = data.get("cittadinanze", {})
 
-        # 1. Verifico che l'utente abbia inviato la Cittadinanza
         if user_id_str not in cittadinanze:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
@@ -411,18 +413,15 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
 
         dati_reg = cittadinanze[user_id_str]
         
-        # 2. Controllo che Nome RP, Roblox ed Età siano IDENTICI alla Cittadinanza
         nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
         roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
-        eta_errata = self.eta_rp.value.strip() != dati_reg["eta_rp"]
 
-        if nome_errato or roblox_errato or eta_errata:
+        if nome_errato or roblox_errato:
             await interaction.followup.send(
                 "❌ **Dati non corrispondenti alla Cittadinanza!**\n"
                 "I dati inseriti devono essere **identici** a quelli inviati nella tua Cittadinanza Ufficiale:\n"
                 f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
-                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`\n"
-                f"• **Età RP salvata:** `{dati_reg['eta_rp']} anni`",
+                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`",
                 ephemeral=True
             )
             return
@@ -440,14 +439,14 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
         embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
         embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
-        embed.add_field(name="🎂 Età RP", value=f"`{self.eta_rp.value} anni`", inline=True)
+        embed.add_field(name="🔫 Tipo di Arma", value=f"`{self.tipo_arma.value}`", inline=True)
         embed.add_field(name="📋 Motivazione RP", value=f"```\n{self.motivazione.value}\n```", inline=False)
 
         view_staff = VistaApprovazioneStaff(
             tipo_documento="Porto d'Armi",
             nome_rp=self.nome_cognome.value,
             roblox_user=self.roblox_user.value,
-            eta_rp=self.eta_rp.value,
+            tipo_arma=self.tipo_arma.value,
             motivazione=self.motivazione.value,
             target_user_id=interaction.user.id
         )
