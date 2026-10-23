@@ -570,13 +570,6 @@ async def portafoglio_cmd(interaction: discord.Interaction, utente: discord.Memb
 
     await interaction.followup.send(embed=embed, ephemeral=True)
 
-
-@bot.tree.command(name="soldi", description="Alias per visualizzare il portafoglio")
-@app_commands.describe(utente="L'utente di cui vuoi verificare il saldo (Solo per lo Staff)")
-async def soldi_cmd(interaction: discord.Interaction, utente: discord.Member = None):
-    await portafoglio_cmd(interaction, utente)
-
-
 # 2. /paga (Scambio Contanti)
 @bot.tree.command(name="paga", description="Paga o dai contanti ad un altro cittadino")
 @app_commands.describe(utente="Il cittadino da pagare", importo="Quantità di contanti da dare")
