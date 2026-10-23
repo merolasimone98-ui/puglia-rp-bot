@@ -1176,7 +1176,7 @@ async def servizio_cmd(interaction: discord.Interaction):
 @bot.tree.command(name="identificami", description="Apri il modulo di identificazione Staff di Puglia RP")
 async def identificami_cmd(interaction: discord.Interaction):
     # Verifica se l'utente possiede il ruolo Staff Base
-    has_staff_base = any(r.id == ROLE_STAFF_BASE_ID for r in interaction.user.roles)
+    has_staff_base = any(r.id == 1562507751975035065 for r in interaction.user.roles)
     
     if not has_staff_base:
         await interaction.response.send_message(
