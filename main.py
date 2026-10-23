@@ -117,7 +117,7 @@ def update_user_duty(user_id_str, duty_data):
 nomi_rp_registrati = {}
 
 # ==========================================
-# 📜 MODULO 1: DOCUMENTI & CITTADINANZA
+# 📜 MODULO 1 : PANNELLO DOCUMENTI (HALLOWEEN EDITION)
 # ==========================================
 class ModalDocumenti(discord.ui.Modal, title="📋 Richiesta Documenti - Puglia RP"):
     nome_cognome = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
@@ -138,7 +138,7 @@ class ModalDocumenti(discord.ui.Modal, title="📋 Richiesta Documenti - Puglia 
 
         embed = discord.Embed(
             title=f"📑 NUOVA RICHIESTA: {self.tipo_documento.upper()}",
-            color=discord.Color.blue(),
+            color=discord.Color.from_rgb(230, 126, 34),
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
@@ -160,27 +160,53 @@ class VistaPannelloDocumenti(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🇮🇹 Cittadinanza", style=discord.ButtonStyle.primary, custom_id="btn_cittadinanza")
+    @discord.ui.button(label="Richiedi Cittadinanza", style=discord.ButtonStyle.primary, custom_id="btn_cittadinanza")
     async def btn_cittadinanza(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalDocumenti(tipo_documento="Cittadinanza"))
 
-    @discord.ui.button(label="🚗 Patente di Guida", style=discord.ButtonStyle.secondary, custom_id="btn_patente")
+    @discord.ui.button(label="Richiedi Patente (A/B/C/D)", style=discord.ButtonStyle.secondary, emoji="🏎️", custom_id="btn_patente")
     async def btn_patente(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalDocumenti(tipo_documento="Patente di Guida"))
 
-    @discord.ui.button(label="🔫 Porto d'Armi", style=discord.ButtonStyle.danger, custom_id="btn_armi")
+    @discord.ui.button(label="Porto d'Armi", style=discord.ButtonStyle.danger, emoji="🔫", custom_id="btn_armi")
     async def btn_armi(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalDocumenti(tipo_documento="Porto d'Armi"))
 
 
-@bot.tree.command(name="pannello", description="Manda il pannello principale per i documenti")
+@bot.tree.command(name="pannello", description="Manda il pannello principale per i documenti (Halloween Edition)")
 @app_commands.checks.has_permissions(administrator=True)
 async def pannello_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🏛️ UFFICIO ANAGRAFE & DOCUMENTI — PUGLIA RP",
-        description="Clicca su uno dei pulsanti sottostanti per richiedere la tua documentazione ufficiale.",
-        color=discord.Color.gold()
+        title="🎃 CENTRO SERVIZI PUGLIA RP - HALLOWEEN EDITION 🏴‍☠️",
+        description=(
+            "🧟 **Benvenuto nella Motorizzazione & Anagrafe Ufficiale!**\n"
+            "Clicca sui pulsanti in basso per inviare le tue richieste ufficiali.\n\n"
+            "📜 **1. Cittadinanza Ufficiale**\n"
+            "• **Descrizione:** Registrazione all'Anagrafe del server.\n"
+            "• **Requisiti:** Inserisci Nome e Cognome RP realistici.\n\n"
+            "🚗 **2. Licenza di Guida / Patenti (A, B, C, D)**\n"
+            "• **Descrizione:** Registrazione veicolo e licenza di guida.\n"
+            "• **Categorie:** 🏍️ **A** (Moto) | 🚗 **B** (Auto) | 🚛 **C** (Camion) | 🚌 **D** (Bus)\n"
+            "• **Nota:** Il Nome RP deve essere **identico** alla Cittadinanza!\n\n"
+            "🔫 **3. Licenza Porto d'Armi**\n"
+            "• **Descrizione:** Licenza per detenzione e uso armi legale.\n"
+            "• **Requisiti:** Visita psicofisica idonea e motivazione RP.\n\n"
+            "⚠️ **Regolamento e Note Importanti**\n"
+            "1️⃣ Assicurati di non possedere già il documento.\n"
+            "2️⃣ In caso di **rifiuto**, attendere **10 minuti di cooldown**.\n"
+            "3️⃣ Compila i moduli con serietà: no troll o nomi irrealistici."
+        ),
+        color=discord.Color.from_rgb(230, 126, 34)
     )
+
+    if interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+
+    embed.set_footer(
+        text="🍂 Puglia RP - Sistema Automazione Documenti • Dolcetto o Scherzetto? 🎃",
+        icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+    )
+
     await interaction.response.send_message(embed=embed, view=VistaPannelloDocumenti())
 
 # ==========================================
