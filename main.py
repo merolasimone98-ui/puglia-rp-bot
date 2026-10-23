@@ -748,6 +748,255 @@ async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Me
     await interaction.followup.send(f"✅ Rimossi **€ {importo:,}** dal **{dove_testo}** di {utente.mention}!", ephemeral=True)
 
 # ==========================================
+# 🛠️ GESTIONE SERVIZIO E LEADERBOARD STAFF
+# ==========================================
+
+# Struttura temporanea in memoria per il tempo attivo
+# staff_turni = { user_id: { "inizio": datetime, "pausa_inizio": datetime, "stato": "attivo"/"in_pausa" } }
+staff_turni = {}
+
+
+class VistaServizioStaff(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🟢 Apri Servizio", style=discord.ButtonStyle.success, custom_id="btn_apri_servizio")
+    async def apri_servizio(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
+        data = load_data()
+
+        # 1. Controllo Obbligatorio Identificazione Staff
+        staff_data = data.get("staff_identificati", {})
+        if user_id_str not in staff_data:
+            await interaction.followup.send(
+                "❌ **Non sei identificato come Staff!** Devi prima completare l'identificazione tramite `/identificami` prima di poter andare in servizio.",
+                ephemeral=True
+            )
+            return
+
+        if user_id_str in staff_turni:
+            await interaction.followup.send("⚠️ Sei già in servizio!", ephemeral=True)
+            return
+
+        # Avvio del turno
+        ora_attuale = datetime.now(timezone.utc)
+        staff_turni[user_id_str] = {
+            "inizio": ora_attuale,
+            "pausa_totale_secondi": 0,
+            "pausa_inizio": None,
+            "stato": "attivo"
+        }
+
+        # Log nel canale Log Staff
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_STAFF)
+        if canale_log:
+            embed_log = discord.Embed(
+                title="🟢 ENTRATA IN SERVIZIO STAFF",
+                description=f"👮 **Staffer:** {interaction.user.mention}\n🆔 **Roblox Username:** `{staff_data[user_id_str]['roblox_user']}`\n⏰ **Ora Inizio:** <t:{int(ora_attuale.timestamp())}:T>",
+                color=discord.Color.green(),
+                timestamp=ora_attuale
+            )
+            roblox_id = staff_data[user_id_str].get("roblox_id")
+            if roblox_id:
+                embed_log.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={roblox_id}&width=420&height=420&format=png")
+            await canale_log.send(embed=embed_log)
+
+        await interaction.followup.send("✅ **Sei entrato in servizio con successo!** Buona guardia.", ephemeral=True)
+
+
+    @discord.ui.button(label="⏸️ Metti in Pausa", style=discord.ButtonStyle.warning, custom_id="btn_pausa_servizio")
+    async def pausa_servizio(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
+
+        if user_id_str not in staff_turni:
+            await interaction.followup.send("❌ Non sei attualmente in servizio!", ephemeral=True)
+            return
+
+        turno = staff_turni[user_id_str]
+        ora_attuale = datetime.now(timezone.utc)
+
+        if turno["stato"] == "attivo":
+            turno["stato"] = "in_pausa"
+            turno["pausa_inizio"] = ora_attuale
+            msg = "⏸️ **Servizio messo in pausa.**"
+        else:
+            # Ripresa dalla pausa
+            durata_pausa = (ora_attuale - turno["pausa_inizio"]).total_seconds()
+            turno["pausa_totale_secondi"] += durata_pausa
+            turno["stato"] = "attivo"
+            turno["pausa_inizio"] = None
+            msg = "▶️ **Servizio ripreso dalla pausa!**"
+
+        # Log in canale Log Staff
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_STAFF)
+        if canale_log:
+            embed_log = discord.Embed(
+                title="⏸️ CAMBIO STATO SERVIZIO STAFF",
+                description=f"👮 **Staffer:** {interaction.user.mention}\n📌 **Stato:** `{turno['stato'].upper()}`\n⏰ **Ora:** <t:{int(ora_attuale.timestamp())}:T>",
+                color=discord.Color.gold(),
+                timestamp=ora_attuale
+            )
+            await canale_log.send(embed=embed_log)
+
+        await interaction.followup.send(msg, ephemeral=True)
+
+
+    @discord.ui.button(label="🔴 Chiudi Servizio", style=discord.ButtonStyle.danger, custom_id="btn_chiudi_servizio")
+    async def chiudi_servizio(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
+
+        if user_id_str not in staff_turni:
+            await interaction.followup.send("❌ Non sei in servizio!", ephemeral=True)
+            return
+
+        turno = staff_turni.pop(user_id_str)
+        ora_attuale = datetime.now(timezone.utc)
+
+        # Se era in pausa al momento della chiusura, calcoliamo la pausa finale
+        if turno["stato"] == "in_pausa" and turno["pausa_inizio"]:
+            turno["pausa_totale_secondi"] += (ora_attuale - turno["pausa_inizio"]).total_seconds()
+
+        tempo_totale_secondi = (ora_attuale - turno["inizio"]).total_seconds()
+        tempo_effettivo_secondi = max(0, tempo_totale_secondi - turno["pausa_totale_secondi"])
+        minuti_fatti = int(tempo_effettivo_secondi // 60)
+
+        # Salvataggio dati e aggiornamento ore
+        data = load_data()
+        leaderboard = data.get("leaderboard_staff", {})
+        leaderboard[user_id_str] = leaderboard.get(user_id_str, 0) + minuti_fatti
+        data["leaderboard_staff"] = leaderboard
+        save_data(data)
+
+        # Log Chiusura
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_STAFF)
+        if canale_log:
+            ore = minuti_fatti // 60
+            minuti = minuti_fatti % 60
+            embed_log = discord.Embed(
+                title="🔴 USCITA DAL SERVIZIO STAFF",
+                description=(
+                    f"👮 **Staffer:** {interaction.user.mention}\n"
+                    f"⏱️ **Tempo Effettivo:** `{ore}h {minuti}m` ({minuti_fatti} min)\n"
+                    f"⏰ **Ora Chiusura:** <t:{int(ora_attuale.timestamp())}:T>"
+                ),
+                color=discord.Color.red(),
+                timestamp=ora_attuale
+            )
+            await canale_log.send(embed=embed_log)
+
+        await aggiorna_leaderboard_embed(interaction.guild)
+        await interaction.followup.send(f"✅ **Servizio concluso.** Hai registrato `{minuti_fatti}` minuti di servizio!", ephemeral=True)
+
+
+# ==========================================
+# 📊 AGGIORNAMENTO LEADERBOARD AUTOMATICA
+# ==========================================
+async def aggiorna_leaderboard_embed(guild: discord.Guild):
+    canale = guild.get_channel(ID_CANALE_LEADERBOARD)
+    if not canale:
+        return
+
+    data = load_data()
+    leaderboard = data.get("leaderboard_staff", {})
+
+    # Ordina per minuti di servizio decrescenti
+    classifica_ordinata = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
+
+    embed = discord.Embed(
+        title="🏆 CLASSIFICA SETTIMANALE ORE STAFF — PUGLIA RP 🎃",
+        description="I minuti di servizio si aggiornano automaticamente alla chiusura di ogni turno.\n*Si resetta ogni Lunedì a 00:00.*\n\n",
+        color=discord.Color.gold(),
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    if not classifica_ordinata:
+        embed.description += "*Nessun dato di servizio registrato per questa settimana.*"
+    else:
+        testo = ""
+        medaglie = ["🥇", "🥈", "🥉"]
+        for idx, (u_id, minuti) in enumerate(classifica_ordinata[:10], start=1):
+            icona = medaglie[idx-1] if idx <= 3 else f"`#{idx}`"
+            ore = minuti // 60
+            m_res = minuti % 60
+            testo += f"{icona} <@{u_id}> — **{ore}h {m_res}m** (`{minuti}` min)\n"
+        embed.add_field(name="📋 Top Staffer della Settimana", value=testo, inline=False)
+
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    embed.set_footer(text="Puglia RP • Reset automatico il Lunedì a mezzanotte")
+
+    # Cerca un messaggio esistente del bot per modificarlo, altrimenti lo invia
+    async for msg in canale.history(limit=10):
+        if msg.author == guild.me and msg.embeds and "CLASSIFICA SETTIMANALE" in msg.embeds[0].title:
+            await msg.edit(embed=embed)
+            return
+
+    await canale.send(embed=embed)
+
+
+# ==========================================
+# ⏰ TASK AUTOMATICO: RESET LUNEDÌ MEZZANOTTE
+# ==========================================
+@tasks.loop(minutes=1)
+async def task_reset_settimanale():
+    ora_ora = datetime.now(timezone.utc)
+    # Lunedì = 0, Ora = 00:00
+    if ora_ora.weekday() == 0 and ora_ora.hour == 0 and ora_ora.minute == 0:
+        data = load_data()
+        data["leaderboard_staff"] = {}
+        save_data(data)
+
+        for guild in bot.guilds:
+            canale = guild.get_channel(ID_CANALE_LEADERBOARD)
+            if canale:
+                await canale.send("🔄 **RESET SETTIMANALE ESEGUITO!** La classifica ore staff è stata resettata per la nuova settimana.")
+                await aggiorna_leaderboard_embed(guild)
+
+
+# ==========================================
+# 📌 COMANDI PER APRIRE IL PANNELLO
+# ==========================================
+@bot.tree.command(name="servizio", description="Invia il tuo pannello personalizzato di Gestione Servizio Staff")
+async def servizio_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    user_id_str = str(interaction.user.id)
+    data = load_data()
+    staff_data = data.get("staff_identificati", {})
+
+    # Controllo Identificazione
+    if user_id_str not in staff_data:
+        await interaction.followup.send(
+            "❌ **Non risulti identificato come Staff!** Utilizza prima il comando `/identificami`.",
+            ephemeral=True
+        )
+        return
+
+    info_staff = staff_data[user_id_str]
+    roblox_username = info_staff.get("roblox_user", "Sconosciuto")
+    roblox_id = info_staff.get("roblox_id")
+
+    embed = discord.Embed(
+        title="🛡️ PANNELLO GESTIONE SERVIZIO STAFF",
+        description=(
+            f"👤 **Staffer:** {interaction.user.mention}\n"
+            f"🎮 **Account Roblox:** `{roblox_username}`\n\n"
+            "👇 **Usa i pulsanti sottostanti per gestire il tuo turno:**"
+        ),
+        color=discord.Color.blue(),
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    # Immagine Profilo Roblox in alto a destra (Thumbnail)
+    if roblox_id:
+        embed.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={roblox_id}&width=420&height=420&format=png")
+
+    await interaction.followup.send(embed=embed, view=VistaServizioStaff(), ephemeral=True)
+
+# ==========================================
 # 💳 MODULO: ECONOMIA, BANCA & MULTE
 # ==========================================
 
