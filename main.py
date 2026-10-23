@@ -571,84 +571,73 @@ class ViewGestioneGenerica(discord.ui.View):
     app_commands.Choice(name="🔫 Porto d'Armi", value="armi")
 ])
 async def revoca_slash(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
-    # Previene il timeout di Discord dicendo subito che il bot sta elaborando
-    await interaction.response.defer(ephemeral=True)
+    try:
+        # Previene subito il timeout di 3 secondi di Discord
+        await interaction.response.defer(ephemeral=True)
 
-    # --- REVOCA IDENTIFICAZIONE STAFF ---
-    if tipo.value == "staff":
-        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
-        if role_staff and role_staff in utente.roles:
+        # ID Ruolo Staff Base / Identificato
+        STAFF_ROLE_ID = 1562507751975035065
+
+        # --- 1. REVOCA IDENTIFICAZIONE STAFF ---
+        if tipo.value == "staff":
+            role_staff = interaction.guild.get_role(STAFF_ROLE_ID)
+            if role_staff and role_staff in utente.roles:
+                try:
+                    await utente.remove_roles(role_staff)
+                except Exception as e:
+                    print(f"Errore rimozione ruolo: {e}")
+
+            data = load_data()
+            user_id_str = str(utente.id)
+            if user_id_str in data.get("users", {}):
+                del data["users"][user_id_str]
+                save_data(data)
+
+            embed = discord.Embed(
+                title="⚠️ IDENTIFICAZIONE STAFF REVOCATA",
+                description=f"L'identificazione Staff di {utente.mention} è stata revocata con successo.",
+                color=discord.Color.red(),
+                timestamp=discord.utils.utcnow()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        # --- 2. REVOCA CITTADINANZA, PATENTI O PORTO D'ARMI ---
+        ruolo_da_rimuovere = None
+        nome_doc = tipo.name
+
+        if tipo.value == "cittadinanza":
+            ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+            if utente.id in nomi_rp_registrati:
+                del nomi_rp_registrati[utente.id]
+
+        elif tipo.value.startswith("patente_"):
+            lettera = tipo.value.split("_")[1].upper()
+            ruolo_da_rimuovere = interaction.guild.get_role(RUOLI_PATENTI.get(lettera))
+
+        elif tipo.value == "armi":
+            ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+
+        if ruolo_da_rimuovere and ruolo_da_rimuovere in utente.roles:
             try:
-                await utente.remove_roles(role_staff)
-            except Exception:
-                pass
-
-        data = load_data()
-        user_id_str = str(utente.id)
-        if user_id_str in data.get("users", {}):
-            del data["users"][user_id_str]
-            save_data(data)
+                await utente.remove_roles(ruolo_da_rimuovere)
+            except Exception as e:
+                print(f"Errore rimozione ruolo documento: {e}")
 
         embed = discord.Embed(
-            title="⚠️ IDENTIFICAZIONE STAFF REVOCATA",
-            description=f"L'identificazione Staff di {utente.mention} è stata revocata con successo.",
-            color=discord.Color.red(),
+            title="🚫 REVOCA DOCUMENTO",
+            description=f"È stata revocata la voce: **{nome_doc}** a {utente.mention}.",
+            color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
-        return
 
-    # --- REVOCA ALTRI DOCUMENTI ---
-    ruolo_da_rimuovere = None
-    nome_doc = tipo.name
-
-    if tipo.value == "cittadinanza":
-        ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-        if utente.id in nomi_rp_registrati:
-            del nomi_rp_registrati[utente.id]
-    elif tipo.value.startswith("patente_"):
-        lettera = tipo.value.split("_")[1].upper()
-        ruolo_da_rimuovere = interaction.guild.get_role(RUOLI_PATENTI.get(lettera))
-    elif tipo.value == "armi":
-        ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-
-    if ruolo_da_rimuovere and ruolo_da_rimuovere in utente.roles:
+    except Exception as err:
+        print(f"Errore durante l'esecuzione di /revoca: {err}")
         try:
-            await utente.remove_roles(ruolo_da_rimuovere)
+            await interaction.followup.send(f"❌ **Si è verificato un errore:** `{err}`", ephemeral=True)
         except Exception:
             pass
-
-    embed = discord.Embed(
-        title="🚫 REVOCA DOCUMENTO",
-        description=f"È stata revocata la voce: **{nome_doc}** a {utente.mention}.",
-        color=discord.Color.orange(),
-        timestamp=discord.utils.utcnow()
-    )
-    await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-
-
-# 🛠️ COMANDO CLASSICO PREFISSO /: /revoca @utente
-@bot.command(name="revoca")
-@commands.has_permissions(administrator=True)
-async def revoca_prefisso(ctx, utente: discord.Member = None):
-    if not utente:
-        await ctx.send("❌ **Uso corretto del comando:** `/revoca @Utente`", delete_after=10)
-        return
-
-    # Cancella il messaggio del comando per pulizia del canale
-    try:
-        await ctx.message.delete()
-    except Exception:
-        pass
-
-    embed = discord.Embed(
-        title="🚨 REVOCA DOCUMENTI - PUGLIA RP",
-        description=f"Seleziona dal menu sottostante quale documento vuoi revocare a {utente.mention}:",
-        color=discord.Color.dark_red()
-    )
-    await ctx.send(embed=embed, view=ViewRevocaDocumento(utente))
 
 
 # ==========================================
