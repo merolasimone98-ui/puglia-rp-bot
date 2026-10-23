@@ -742,7 +742,7 @@ async def pannello_prefisso(ctx):
 @bot.event
 async def on_ready():
     print(f'🤖 Bot connesso come {bot.user}')
-    
+
     for guild in bot.guilds:
         try:
             bot.tree.copy_global_to(guild=guild)
@@ -752,6 +752,10 @@ async def on_ready():
             print(f"❌ Errore sincronizzazione su {guild.name}: {e}")
 
     print('✅ Il bot di Puglia RP è ONLINE e pronto!')
+
+    # Avvio sicuro del task per il reset del lunedì
+    if not monday_reset_task.is_running():
+        monday_reset_task.start()
 
 TOKEN = "MTU2MjU3Mjg4MjQxNDkyNzg3Mw.GEEuWu.NaQWmZYnB3UVMzHY-f5aSGYsy4hlRHD8JxJTZk"
 
@@ -1260,10 +1264,14 @@ async def before_monday_reset():
     await bot.wait_until_ready()
 
 # Avvia il loop del reset settimanale
-monday_reset_task.start()
 
     
 import os
 
+keep_alive() # <-- Aggiungi questa riga per la 24/7 di Flask
+
 TOKEN = os.getenv('DISCORD_TOKEN')
-bot.run(TOKEN)
+if TOKEN:
+    bot.run(TOKEN)
+else:
+    print("ERRORE: DISCORD_TOKEN non trovato!")
