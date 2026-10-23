@@ -40,6 +40,7 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 ROLE_STAFF_BASE_ID = 1562507751975035065
 ID_RUOLO_CITTADINO = 1562894350135066674
 ID_RUOLO_PORTO_DARMI = 1562894902428442695
+ID_RUOLO_FDO = 1563276863462178956
 
 RUOLI_PATENTI = {
     'A': 1562894624597479555,
@@ -1001,56 +1002,6 @@ async def task_reset_settimanale():
                 await canale.send("🔄 **RESET SETTIMANALE ESEGUITO!** La classifica ore staff è stata resettata per la nuova settimana.")
                 await aggiorna_leaderboard_embed(guild)
 
-
-# ==========================================
-# 📌 COMANDO /SERVIZIO AGGIORNATO E CORRETTO
-# ==========================================
-@bot.tree.command(name="servizio", description="Invia il tuo pannello personalizzato di Gestione Servizio Staff")
-async def servizio_cmd(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
-    user_id_str = str(interaction.user.id)
-    data = load_data()
-
-    # Controlliamo in tutte le strutture possibili usate da /identificami
-    staff_data = data.get("identificazioni_staff", data.get("staff_identificati", data.get("staff", {})))
-
-    # Se l'utente non trova la mappa o l'ID non è presente
-    if user_id_str not in staff_data:
-        await interaction.followup.send(
-            "❌ **Non risulti identificato come Staff!** Utilizza prima il comando `/identificami`.",
-            ephemeral=True
-        )
-        return
-
-    info_staff = staff_data[user_id_str]
-
-    # Estragga il nome e l'id roblox in base a come sono salvati
-    if isinstance(info_staff, dict):
-        roblox_username = info_staff.get("roblox_user", info_staff.get("roblox_username", info_staff.get("nome_roblox", "Sconosciuto")))
-        roblox_id = info_staff.get("roblox_id", info_staff.get("id_roblox"))
-    else:
-        # Se è salvato semplicemente come stringa col nome utente
-        roblox_username = str(info_staff)
-        roblox_id = None
-
-    embed = discord.Embed(
-        title="🛡️ PANNELLO GESTIONE SERVIZIO STAFF",
-        description=(
-            f"👤 **Staffer:** {interaction.user.mention}\n"
-            f"🎮 **Account Roblox:** `{roblox_username}`\n\n"
-            "👇 **Usa i pulsanti sottostanti per gestire il tuo turno:**"
-        ),
-        color=discord.Color.blue(),
-        timestamp=datetime.now(timezone.utc)
-    )
-
-    # Immagine Profilo Roblox in alto a destra (Thumbnail) se presente l'ID
-    if roblox_id:
-        embed.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={roblox_id}&width=420&height=420&format=png")
-
-    await interaction.followup.send(embed=embed, view=VistaServizioStaff(), ephemeral=True)
-
 # ==========================================
 # 💳 MODULO: ECONOMIA, BANCA & MULTE
 # ==========================================
@@ -1147,6 +1098,100 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     embed.set_footer(text="Puglia RP • Gestione Finanziaria Sicura 💳", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
 
     await interaction.followup.send(embed=embed, view=VistaContoBancario())
+
+# ==========================================
+# ❌ COMANDO /REVOCA PERMUTATO (FDO & Staff)
+# ==========================================
+@bot.tree.command(name="revoca", description="Revoca licenze, patenti, cittadinanza o status ad un utente")
+@app_commands.describe(utente="L'utente a cui revocare il documento/licenza", tipo="Cosa vuoi revocare?")
+@app_commands.choices(tipo=[
+    app_commands.Choice(name="🏍️ Patente A (Moto)", value="patente_a"),
+    app_commands.Choice(name="🚙 Patente B (Auto)", value="patente_b"),
+    app_commands.Choice(name="🚛 Patente C (Camion)", value="patente_c"),
+    app_commands.Choice(name="🚌 Patente D (Autobus)", value="patente_d"),
+    app_commands.Choice(name="🔫 Porto d'Armi", value="porto_darmi"),
+    app_commands.Choice(name="📃 Cittadinanza", value="cittadinanza"),
+    app_commands.Choice(name="🏦 Conto Bancario", value="documenti"),
+    app_commands.Choice(name="🛡️ Identificazione Staff", value="staff")
+])
+async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
+    await interaction.response.defer(ephemeral=True)
+
+    # 1. Verifica dei permessi (Staff vs FDO)
+    is_staff = interaction.user.guild_permissions.manage_messages or interaction.user.guild_permissions.administrator
+    is_fdo = any(role.id == ID_RUOLO_FDO for role.id in interaction.user.roles)
+
+    # Le FDO non staff possono revocare SOLO patenti e porto d'armi
+    licenze_fdo = ["patente_a", "patente_b", "patente_c", "patente_d", "porto_darmi"]
+
+    if not is_staff and not is_fdo:
+        await interaction.followup.send("❌ Non hai i permessi necessari per utilizzare questo comando!", ephemeral=True)
+        return
+
+    if is_fdo and not is_staff and tipo.value not in licenze_fdo:
+        await interaction.followup.send("⚠️ Come membro delle **FDO** puoi revocare solamente le **Patenti** e il **Porto d'Armi**!", ephemeral=True)
+        return
+
+    user_id_str = str(utente.id)
+    data = load_data()
+    
+    licenze_data = data.setdefault("licenze_cittadini", {})
+    user_licenze = licenze_data.setdefault(user_id_str, {
+        "patente_a": False,
+        "patente_b": False,
+        "patente_c": False,
+        "patente_d": False,
+        "porto_darmi": False,
+        "cittadinanza": True
+    })
+
+    messaggio = ""
+    modificato = False
+
+    # 2. Revoca Patenti & Porto d'Armi (FDO + Staff)
+    if tipo.value in licenze_fdo:
+        nome_documento = tipo.name
+        if user_licenze.get(tipo.value, False):
+            user_licenze[tipo.value] = False
+            modificato = True
+            messaggio = f"✅ **{nome_documento}** revocato/a con successo a {utente.mention}!"
+        else:
+            messaggio = f"❌ {utente.mention} non possiede attualmente **{nome_documento}**."
+
+    # 3. Revoca Cittadinanza (Solo Staff)
+    elif tipo.value == "cittadinanza":
+        if user_licenze.get("cittadinanza", True):
+            user_licenze["cittadinanza"] = False
+            modificato = True
+            messaggio = f"✅ **Cittadinanza** revocata con successo a {utente.mention}!"
+        else:
+            messaggio = f"❌ {utente.mention} non possiede la cittadinanza attiva."
+
+    # 4. Revoca Conto Bancario / Documenti (Solo Staff)
+    elif tipo.value == "documenti":
+        eco_data = data.setdefault("economia", {}).setdefault(user_id_str, {})
+        if eco_data.get("has_account") or eco_data.get("bank", 0) > 0:
+            eco_data["has_account"] = False
+            eco_data["bank"] = 0
+            modificato = True
+            messaggio = f"✅ Il conto bancario e i documenti di {utente.mention} sono stati revocati!"
+        else:
+            messaggio = f"❌ {utente.mention} non ha un conto bancario attivo da revocare."
+
+    # 5. Revoca Identificazione Staff (Solo Staff)
+    elif tipo.value == "staff":
+        staff_data = data.get("identificazioni_staff", {})
+        if user_id_str in staff_data:
+            del staff_data[user_id_str]
+            modificato = True
+            messaggio = f"✅ L'identificazione Staff di {utente.mention} è stata revocata con successo!"
+        else:
+            messaggio = f"❌ {utente.mention} non risulta identificato nello Staff."
+
+    if modificato:
+        save_data(data)
+
+    await interaction.followup.send(messaggio, ephemeral=True)
 
 # ==========================================
 # 💸 MODULO: MULTE AVANZATE (BANCA / CONTANTI + NEGATIVO)
