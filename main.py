@@ -1141,6 +1141,52 @@ async def lista_player_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ==========================================
+# 📌 SETUP EMBED INFORMATIVO RECENSIONI STAFF
+# ==========================================
+@bot.tree.command(name="setup-recensioni", description="Invia l'embed informativo nel canale recensioni (Solo Admin)")
+@app_commands.checks.has_permissions(administrator=True)
+async def setup_recensioni_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    canale_recensioni = interaction.guild.get_channel(1563156712679145502)
+    if not canale_recensioni:
+        await interaction.followup.send("❌ **Errore:** Canale `1563156712679145502` non trovato!", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🌟 PUGLIA RP — RECENSIONI STAFF 🍂🎃",
+        description=(
+            "✨ **Vuoi valutare l'operato del nostro Staff?**\n"
+            "La tua opinione è fondamentale per aiutarci a migliorare la qualità del Roleplay e premiare i membri dello Staff più attivi e disponibili! 🛡️⚡\n\n"
+            "─────────────────────────────\n\n"
+            "📝 **COME INVIARE UNA RECENSIONE:**\n\n"
+            "Usa il comando ufficiale `/recensisci-staff` e completa tutti i campi richiesti:\n\n"
+            "🔹 **`staffer:`** `@Membro_Staff` *(Menziona lo staffer che vuoi valutare)*\n"
+            "🔹 **`valutazione:`** `1 - 10 Stelle` *(Seleziona il voto da 1 a 10)*\n"
+            "🔹 **`motivo:`** `Scrivi qui il tuo messaggio` *(Spiega in dettaglio l'esperienza)*\n\n"
+            "─────────────────────────────\n\n"
+            "📌 **Esempio Pratico:**\n"
+            "```text\n"
+            "/recensisci-staff staffer: @MarioRossi valutazione: 10 / 10 motivo: Ottimo supporto durante il ticket, veloce e super gentile!\n"
+            "```\n"
+            "⚠️ *Tutte le recensioni valide verranno pubblicate automaticamente nell'Anagrafe/Forum delle Recensioni! Non usare il comando per scherzi o troll.* 🚫"
+        ),
+        color=discord.Color.from_rgb(230, 126, 34),  # Arancione Halloween/Autunno
+        timestamp=discord.utils.utcnow()
+    )
+
+    # Impostazione Grafica Ufficiale Puglia RP
+    if interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+
+    # Immagine Banner Ufficiale Puglia RP Recensione Staff
+    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg")
+    embed.set_footer(text="Puglia RP • Valuta il nostro Staff 👑", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+
+    await canale_recensioni.send(embed=embed)
+    await interaction.followup.send(f"✅ **Embed informativo inviato con successo in** <#1563156712679145502>!", ephemeral=True)
+
+# ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
 @bot.event
