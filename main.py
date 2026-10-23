@@ -1,15 +1,20 @@
-# ==========================================
-# RICHIESTA DOCUMENTO
-# ==========================================
+# Aggiungi questi import all'inizio di main.py
+import asyncio
+import os
+import re
+import aiohttp
+
+# discord, app_commands, commands e datetime sono già importati nel tuo file.
+
 
 ID_CANALE_LOG_RICHIESTA_DOCUMENTO = 1563240758390030517
 ID_RUOLO_APPROVA_DOCUMENTO = 1562507751975035065
-TITOLO_RICHIESTA_DOCUMENTO_IN_ATTESA = "📄 Nuova richiesta documento"
+TITOLO_RICHIESTA_IN_ATTESA = "📄 Nuova richiesta documento"
 
 _lock_richieste_documento = {}
 
 
-async def cerca_avatar_roblox(nome_utente):
+async def cerca_avatar_roblox(nome_utente: str) -> str | None:
     timeout = aiohttp.ClientTimeout(total=12)
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -38,12 +43,12 @@ async def cerca_avatar_roblox(nome_utente):
             },
         ) as response:
             response.raise_for_status()
-            risultati = (await response.json()).get("data", [])
+            avatar = (await response.json()).get("data", [])
 
-        if not risultati:
+        if not avatar:
             return None
 
-        return risultati[0].get("imageUrl")
+        return avatar[0].get("imageUrl")
 
 
 class ViewApprovazioneRichiestaDocumento(discord.ui.View):
@@ -55,7 +60,7 @@ class ViewApprovazioneRichiestaDocumento(discord.ui.View):
 
         if not isinstance(membro, discord.Member):
             await interaction.response.send_message(
-                "Questi pulsanti funzionano solo nel server.",
+                "Questi pulsanti si possono usare solo nel server.",
                 ephemeral=True,
             )
             return False
@@ -137,7 +142,7 @@ class ViewApprovazioneRichiestaDocumento(discord.ui.View):
 
             embed = discord.Embed.from_dict(messaggio.embeds[0].to_dict())
 
-            if embed.title != TITOLO_RICHIESTA_DOCUMENTO_IN_ATTESA:
+            if embed.title != TITOLO_RICHIESTA_IN_ATTESA:
                 await interaction.response.send_message(
                     "Questa richiesta è già stata gestita.",
                     ephemeral=True,
@@ -159,8 +164,7 @@ class ViewApprovazioneRichiestaDocumento(discord.ui.View):
             if accettata:
                 esito = "accettata"
                 messaggio_dm = (
-                    "✅ La tua richiesta documento è stata accettata "
-                    "con successo."
+                    "✅ La tua richiesta documento è stata accettata con successo."
                 )
                 embed.title = "✅ Richiesta documento accettata"
                 embed.color = discord.Color.green()
@@ -170,9 +174,12 @@ class ViewApprovazioneRichiestaDocumento(discord.ui.View):
                 embed.title = "❌ Richiesta documento rifiutata"
                 embed.color = discord.Color.red()
 
+            nome_revisore = discord.utils.escape_markdown(
+                interaction.user.display_name
+            )
             embed.add_field(
                 name="Esito",
-                value=f"Richiesta {esito} da {interaction.user.mention}.",
+                value=f"Richiesta {esito} da **{nome_revisore}**.",
                 inline=False,
             )
             embed.set_footer(
@@ -202,7 +209,7 @@ class ViewApprovazioneRichiestaDocumento(discord.ui.View):
 
         if dm_inviato:
             await interaction.followup.send(
-                f"Richiesta {esito}; ho inviato un DM al richiedente.",
+                f"Richiesta {esito}; DM inviato al richiedente.",
                 ephemeral=True,
             )
         else:
@@ -248,7 +255,7 @@ async def richiesta_documento(
     for etichetta, valore in campi.items():
         if len(valore) < 4:
             await interaction.response.send_message(
-                f"Il campo **{etichetta}** deve contenere più di 3 caratteri.",
+                f"Il campo **{etichetta}** deve avere più di 3 caratteri.",
                 ephemeral=True,
             )
             return
@@ -260,14 +267,20 @@ async def richiesta_documento(
             )
             return
 
-    try:
-        datetime.datetime.strptime(
-            campi["Data di nascita"],
-            "%d/%m/%Y",
-        )
-    except ValueError:
+    data = campi["Data di nascita"]
+
+    if not re.fullmatch(r"\d{2}/\d{2}/\d{4}", data):
         await interaction.response.send_message(
             "Inserisci la data nel formato **GG/MM/AAAA**.",
+            ephemeral=True,
+        )
+        return
+
+    try:
+        datetime.datetime.strptime(data, "%d/%m/%Y")
+    except ValueError:
+        await interaction.response.send_message(
+            "La data inserita non è valida. Usa il formato **GG/MM/AAAA**.",
             ephemeral=True,
         )
         return
@@ -310,7 +323,7 @@ async def richiesta_documento(
         return
 
     embed = discord.Embed(
-        title=TITOLO_RICHIESTA_DOCUMENTO_IN_ATTESA,
+        title=TITOLO_RICHIESTA_IN_ATTESA,
         description="Una nuova richiesta è in attesa di revisione.",
         color=discord.Color.blurple(),
         timestamp=discord.utils.utcnow(),
@@ -342,3 +355,8 @@ async def richiesta_documento(
         "✅ Richiesta inviata con successo. Riceverai un DM dopo la revisione.",
         ephemeral=True,
     )
+
+
+# Registra i pulsanti persistenti: metti questa riga dopo le classi,
+# prima del bot.run(TOKEN).
+bot.add_view(ViewApprovazioneRichiestaDocumento())
