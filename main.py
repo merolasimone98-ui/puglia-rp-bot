@@ -41,6 +41,9 @@ ID_FORUM_DOCUMENTI = 1562891782415450183            # #documenti-cittadinanza (F
 LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg?ex=6adc9a49&is=6adb48c9&hm=889b0be762da4780fd7225ff6632c4ae457b26a5d1b1f6bfdadb3c413816c642&=&format=webp"
 ID_CANALE_COMANDO_RECENSIONI = 1563193613452841061
 ID_CANALE_LOG_RECENSIONI = 1563194331320557768
+# ⚙️ CONFIGURAZIONE CANALI MULTE E ARRESTI
+ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
+ID_CANALE_REGISTRO_MULTE = 1563215066411696299
 
 
 
@@ -565,6 +568,95 @@ class ViewGestioneGenerica(discord.ui.View):
         except Exception:
             pass
         self.stop()
+
+# ==========================================
+# 🚨 SISTEMA ARRESTI E MULTE (STAFF / FORZE DELL'ORDINE)
+# ==========================================
+
+# --- COMANDO /arresta ---
+@bot.tree.command(name="arresta", description="Emetti un mandato di arresto per un utente")
+@app_commands.describe(
+    utente="L'utente da arrestare",
+    durata="Durata della pena (es. 1 giorno, 3 giorni, 12 ore)",
+    motivo="Motivazione dettagliata dell'arresto"
+)
+async def arresta_cmd(interaction: discord.Interaction, utente: discord.Member, durata: str, motivo: str):
+    await interaction.response.defer(ephemeral=True)
+
+    canale_arresti = interaction.guild.get_channel(ID_CANALE_REGISTRO_ARRESTI)
+    if not canale_arresti:
+        await interaction.followup.send("❌ Canale registro arresti non trovato!", ephemeral=True)
+        return
+
+    # Creazione Embed Arresto
+    embed = discord.Embed(
+        title="🚨 REGISTRO ARRESTI — PUGLIA RP",
+        color=discord.Color.dark_red(),
+        timestamp=discord.utils.utcnow()
+    )
+    embed.add_field(name="👤 Utente Arrestato", value=utente.mention, inline=True)
+    embed.add_field(name="👮 Agente / Staff", value=interaction.user.mention, inline=True)
+    embed.add_field(name="⏱️ Durata Pena", value=f"`{durata}`", inline=False)
+    embed.add_field(name="📋 Motivazione", value=f"```{motivo}```", inline=False)
+
+    if utente.display_avatar:
+        embed.set_thumbnail(url=utente.display_avatar.url)
+
+    embed.set_footer(
+        text="Puglia RP • Sistema Giudiziario",
+        icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+    )
+
+    # Invio nel canale registro
+    await canale_arresti.send(embed=embed)
+
+    await interaction.followup.send(
+        f"✅ Arresto registrato con successo per {utente.mention} nel canale dedicato.",
+        ephemeral=True
+    )
+
+
+# --- COMANDO /multa ---
+@bot.tree.command(name="multa", description="Emetti una sanzione pecuniaria (multa) a un utente")
+@app_commands.describe(
+    utente="L'utente a cui infliggere la multa",
+    importo="Importo in denaro (es. 500, 1500...)",
+    motivo="Motivazione della sanzione (es. Guida pericolosa)"
+)
+async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int, motivo: str):
+    await interaction.response.defer(ephemeral=True)
+
+    canale_multe = interaction.guild.get_channel(ID_CANALE_REGISTRO_MULTE)
+    if not canale_multe:
+        await interaction.followup.send("❌ Canale registro multe non trovato!", ephemeral=True)
+        return
+
+    # Creazione Embed Multa
+    embed = discord.Embed(
+        title="💸 NOTIFICA DI SANZIONE / MULTA — PUGLIA RP",
+        color=discord.Color.from_rgb(230, 126, 34),
+        timestamp=discord.utils.utcnow()
+    )
+    embed.add_field(name="👤 Sanzionato", value=utente.mention, inline=True)
+    embed.add_field(name="👮 Emessa da", value=interaction.user.mention, inline=True)
+    embed.add_field(name="💰 Importo", value=f"**€ {importo:,}**", inline=False)
+    embed.add_field(name="📋 Motivazione", value=f"```{motivo}```", inline=False)
+
+    if utente.display_avatar:
+        embed.set_thumbnail(url=utente.display_avatar.url)
+
+    embed.set_footer(
+        text="Puglia RP • Motorizzazione & Forze dell'Ordine",
+        icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+    )
+
+    # Invio nel canale registro
+    await canale_multe.send(embed=embed)
+
+    await interaction.followup.send(
+        f"✅ Multa di **€ {importo}** emessa con successo a {utente.mention}.",
+        ephemeral=True
+    )
 
 
 # ==========================================
