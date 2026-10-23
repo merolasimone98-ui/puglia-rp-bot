@@ -1240,7 +1240,7 @@ async def leaderboard_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
-# COMANDO /lista-staff (LISTA UTENTI IDENTIFICATI)
+# COMANDO /lista-staff (VISIBILE SOLO A CHI LO ESEGUI)
 # ==========================================
 @bot.tree.command(name="lista-staff", description="Mostra la lista di tutti i membri dello Staff identificati")
 async def lista_staff_cmd(interaction: discord.Interaction):
@@ -1270,7 +1270,7 @@ async def lista_staff_cmd(interaction: discord.Interaction):
         rank = info.get("rank", "N/D")
 
         field_value = (
-            f"👤 **Discord:** {discord_name}\name"
+            f"👤 **Discord:** {discord_name}\n"
             f"🎮 **Roblox:** `{roblox_name}`\n"
             f"🎭 **Nome RP:** {rp_name}\n"
             f"🎖️ **Grado:** {rank}"
@@ -1281,6 +1281,11 @@ async def lista_staff_cmd(interaction: discord.Interaction):
             value=field_value,
             inline=False
         )
+
+    embed.set_footer(text="Puglia RP • Sistema Gestione Staff")
+    
+    # invia il messaggio in modalità ephemeral (privato solo per l'utente)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
     embed.set_footer(text="Puglia RP • Sistema Gestione Staff")
     
