@@ -50,8 +50,8 @@ RUOLI_PATENTI = {
 
 ID_FORUM_DOCUMENTI = 1562891782415450183
 
-ID_CANALE_COMANDO_RECENSIONI = 123456789012345678  # Sostituisci con l'ID del canale recensioni
-ID_CANALE_LOG_RECENSIONI = 1563176554786463894      # Canale Forum Recensioni
+ID_CANALE_COMANDO_RECENSIONI = 1563156712679145502  # Sostituisci con l'ID del canale recensioni
+ID_CANALE_LOG_RECENSIONI = 1563176554786463894     # Canale Forum Recensioni
 LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg?ex=6adc9a49&is=6adb48c9&hm=889b0be762da4780fd7225ff6632c4ae457b26a5d1b1f6bfdadb3c413816c642&=&format=webp"
 
 ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
@@ -998,10 +998,10 @@ async def sessione_offline_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
-# ⭐ MODULO: RECENSIONS STAFF (FORUM)
+# ⭐ MODULO: RECENSIONI STAFF (HALLOWEEN/AUTUMN EDITION)
 # ==========================================
 @bot.tree.command(name="recensisci-staff", description="Invia una recensione per un membro dello Staff di Puglia RP")
-@app_commands.describe(staffer="Lo staffer da recensire", valutazione="Valutazione 1-10", motivo="Motivazione")
+@app_commands.describe(staffer="Menziona lo staffer da recensire", valutazione="Valutazione da 1 a 10 stelle", motivo="Motivazione della recensione")
 @app_commands.choices(valutazione=[
     app_commands.Choice(name="⭐ 1 / 10", value=1),
     app_commands.Choice(name="⭐⭐ 2 / 10", value=2),
@@ -1015,39 +1015,52 @@ async def sessione_offline_cmd(interaction: discord.Interaction):
     app_commands.Choice(name="🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟 10 / 10", value=10)
 ])
 async def recensisci_staff_cmd(interaction: discord.Interaction, staffer: discord.Member, valutazione: app_commands.Choice[int], motivo: str):
+    # 1. Verifico che il comando sia eseguito nel canale dedicato
     if interaction.channel.id != ID_CANALE_COMANDO_RECENSIONI:
-        await interaction.response.send_message(f"❌ Puoi rilasciare recensioni solo in <#{ID_CANALE_COMANDO_RECENSIONI}>.", ephemeral=True)
+        await interaction.response.send_message(
+            f"❌ **Canale Errato!** Puoi inviare recensioni solo nel canale <#{ID_CANALE_COMANDO_RECENSIONI}>.", 
+            ephemeral=True
+        )
         return
 
     await interaction.response.defer(ephemeral=True)
     forum_channel = interaction.guild.get_channel(ID_CANALE_LOG_RECENSIONI)
 
     if not forum_channel or not isinstance(forum_channel, discord.ForumChannel):
-        await interaction.followup.send("❌ Canale Forum recensioni non trovato.", ephemeral=True)
+        await interaction.followup.send("❌ **Errore:** Canale Forum delle recensioni non trovato!", ephemeral=True)
         return
 
+    # 2. Generazione grafica delle stelle
     stelle_grafiche = "⭐" * valutazione.value
+
+    # 3. Creazione Embed Elegante
     embed = discord.Embed(
         title="🌟 NUOVA RECENSIONE STAFF — PUGLIA RP 🌟",
         color=discord.Color.from_rgb(230, 126, 34),
         timestamp=discord.utils.utcnow()
     )
-    embed.add_field(name="👮 Staffer", value=staffer.mention, inline=True)
-    embed.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
-    embed.add_field(name="⭐ Valutazione", value=f"**{valutazione.value}/10**\n{stelle_grafiche}", inline=False)
-    embed.add_field(name="💬 Motivazione", value=f"```{motivo}```", inline=False)
+    embed.add_field(name="👮 Staffer Valutato", value=staffer.mention, inline=True)
+    embed.add_field(name="👤 Recensione da", value=interaction.user.mention, inline=True)
+    embed.add_field(name="⭐ Valutazione", value=f"**{valutazione.value} / 10**\n{stelle_grafiche}", inline=False)
+    embed.add_field(name="💬 Motivazione", value=f"```\n{motivo}\n```", inline=False)
 
     if staffer.display_avatar:
         embed.set_thumbnail(url=staffer.display_avatar.url)
+    
+    # Inserimento Immagine Grafica Ufficiale
     if LINK_IMMAGINE_RECENSIONE:
         embed.set_image(url=LINK_IMMAGINE_RECENSIONE)
 
-    titolo_post = f"⭐ [{valutazione.value}/10] Recensione Staff - {staffer.display_name}"
+    embed.set_footer(text="Puglia RP • Sistema Recensioni Ufficiale", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+
+    # 4. Creazione Thread nel Forum
+    titolo_post = f"⭐ [{valutazione.value}/10] Recensione - {staffer.display_name}"
+    
     try:
         await forum_channel.create_thread(name=titolo_post, embed=embed)
-        await interaction.followup.send(f"✅ Recensione pubblicata nel Forum per {staffer.mention}!", ephemeral=True)
+        await interaction.followup.send(f"✅ **Recensione pubblicata con successo per {staffer.mention}!**", ephemeral=True)
     except Exception as e:
-        await interaction.followup.send(f"❌ Errore invio forum: `{e}`", ephemeral=True)
+        await interaction.followup.send(f"❌ Errore durante la pubblicazione nel forum: `{e}`", ephemeral=True)
 
 # ==========================================
 # 🚨 MODULO: ARRESTI & MULTE
