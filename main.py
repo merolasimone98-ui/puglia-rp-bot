@@ -1311,7 +1311,7 @@ async def lista_staff_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
-# ⭐ COMANDO /recensisci-staff
+# ⭐ COMANDO /recensisci-staff (VERSIONE FORUM)
 # ==========================================
 @bot.tree.command(name="recensisci-staff", description="Invia una recensione per un membro dello Staff di Puglia RP")
 @app_commands.describe(
@@ -1345,25 +1345,26 @@ async def recensisci_staff_cmd(
         )
         return
 
-    # Risposta immediata per evitare il timeout
+    # Previene il timeout di 3 secondi
     await interaction.response.defer(ephemeral=True)
 
-    # Canale di destinazione dove inviare l'embed della recensione
-    canale_log = interaction.guild.get_channel(ID_CANALE_LOG_RECENSIONI)
-    if not canale_log:
+    # Recupera il canale Forum
+    forum_channel = interaction.guild.get_channel(ID_CANALE_LOG_RECENSIONI)
+    
+    # Verifica che il canale esista e che sia effettivamente un Forum
+    if not forum_channel or not isinstance(forum_channel, discord.ForumChannel):
         await interaction.followup.send(
-            "❌ Errore: Canale dei log recensioni non trovato. Avvisa un amministratore.",
+            "❌ **Errore:** Canale Forum per le recensioni non trovato o non configurato correttamente.",
             ephemeral=True
         )
         return
 
-    # Costruzione delle stelle grafiche
     stelle_grafiche = "⭐" * valutazione.value
 
-    # Creazione Embed Recensione
+    # Creazione dell'Embed per la Recensione
     embed = discord.Embed(
         title="🌟 NUOVA RECENSIONE STAFF — PUGLIA RP 🌟",
-        color=discord.Color.from_rgb(230, 126, 34), # Arancione autunnale / Halloween
+        color=discord.Color.from_rgb(230, 126, 34),
         timestamp=discord.utils.utcnow()
     )
 
@@ -1375,7 +1376,6 @@ async def recensisci_staff_cmd(
     if staffer.display_avatar:
         embed.set_thumbnail(url=staffer.display_avatar.url)
 
-    # Immagine della Recensione Staff in grande sotto il pannello
     if LINK_IMMAGINE_RECENSIONE:
         embed.set_image(url=LINK_IMMAGINE_RECENSIONE)
 
@@ -1384,14 +1384,24 @@ async def recensisci_staff_cmd(
         icon_url=interaction.guild.icon.url if interaction.guild.icon else None
     )
 
-    # Invio della recensione nel canale pubblico dei log
-    await canale_log.send(embed=embed)
-
-    # Conferma privata all'utente
-    await interaction.followup.send(
-        f"✅ **Recensione inviata con successo!** Grazie per il tuo feedback su {staffer.mention}.",
-        ephemeral=True
-    )
+    # 📌 CREAZIONE DEL POST NEL FORUM
+    titolo_post = f"⭐ [{valutazione.value}/10] Recensione Staff - {staffer.display_name}"
+    
+    try:
+        await forum_channel.create_thread(
+            name=titolo_post,
+            embed=embed
+        )
+        await interaction.followup.send(
+            f"✅ **Recensione inviata con successo!** È stato creato un nuovo post nel Forum per {staffer.mention}.",
+            ephemeral=True
+        )
+    except Exception as e:
+        print(f"Errore creazione post forum: {e}")
+        await interaction.followup.send(
+            f"❌ Si è verificato un errore durante la pubblicazione nel forum: `{e}`",
+            ephemeral=True
+        )
 
 # ==========================================
 # TASK AUTOMATICO: RESET & LEADERBOARD LUNEDÌ
