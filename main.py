@@ -805,7 +805,7 @@ class VistaServizioStaff(discord.ui.View):
         await interaction.followup.send("✅ **Sei entrato in servizio con successo!** Buona guardia.", ephemeral=True)
 
 
-    @discord.ui.button(label="⏸️ Metti in Pausa", style=discord.ButtonStyle.warning, custom_id="btn_pausa_servizio")
+    @discord.ui.button(label="⏸️ Metti in Pausa", style=discord.ButtonStyle.secondary, custom_id="btn_pausa_servizio")
     async def pausa_servizio(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
