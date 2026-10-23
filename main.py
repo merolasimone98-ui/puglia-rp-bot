@@ -534,14 +534,39 @@ async def pannello_cmd(interaction: discord.Interaction):
 # ==========================================
 # 💳 MODULO: ECONOMIA & BANCA
 # ==========================================
-class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente - Puglia RP"):
-    nome_cognome = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
+# ==========================================
+# 💳 MODULO: ECONOMIA, BANCA & MULTE
+# ==========================================
+
+class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
+    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
+    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
-        eco = get_user_eco(user_id_str)
+        data = load_data()
+        cittadinanze = data.get("cittadinanze", {})
 
+        # Controllo obbligatorio: deve avere la Cittadinanza
+        if user_id_str not in cittadinanze:
+            await interaction.followup.send(
+                "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** prima di aprire un conto bancario 📜.",
+                ephemeral=True
+            )
+            return
+
+        dati_reg = cittadinanze[user_id_str]
+        
+        # Controllo corrispondenza Nome RP
+        if self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower():
+            await interaction.followup.send(
+                f"❌ **Nome RP Errato!** Deve corrispondere alla tua Cittadinanza (`{dati_reg['nome_rp']}`).",
+                ephemeral=True
+            )
+            return
+
+        eco = get_user_eco(user_id_str)
         if eco.get("has_account"):
             await interaction.followup.send("❌ Possiedi già un conto corrente attivo!", ephemeral=True)
             return
@@ -551,9 +576,9 @@ class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente - Pug
         update_user_eco(user_id_str, eco)
 
         embed = discord.Embed(
-            title="🏦 CONTO BANCARIO APERTO CON SUCCESSO!",
-            description=f"Congratulazioni **{self.nome_cognome.value}**!\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati.",
-            color=discord.Color.green(),
+            title="🏦 CONTO BANCARIO APERTO CON SUCCESSO! 💰",
+            description=f"Congratulazioni **{self.nome_cognome.value}** ({self.eta_rp.value} anni)!\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati sul tuo nuovo conto.",
+            color=discord.Color.from_rgb(46, 204, 113),
             timestamp=discord.utils.utcnow()
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
@@ -563,7 +588,7 @@ class VistaContoBancario(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="💳 Apri Conto Bancario", style=discord.ButtonStyle.success, custom_id="btn_apri_conto")
+    @discord.ui.button(label="Apri Conto Bancario", style=discord.ButtonStyle.success, emoji="💳", custom_id="btn_apri_conto")
     async def btn_apri_conto(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_id_str = str(interaction.user.id)
         eco = get_user_eco(user_id_str)
@@ -575,139 +600,92 @@ class VistaContoBancario(discord.ui.View):
         await interaction.response.send_modal(ModalApriConto())
 
 
-@bot.tree.command(name="pannello-contobancario", description="Invia il pannello per l'apertura del conto bancario (Solo Admin)")
+@bot.tree.command(name="pannello-contobancario", description="Invia il nuovo pannello per l'apertura del conto bancario (Solo Admin)")
 @app_commands.checks.has_permissions(administrator=True)
 async def pannello_conto_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🏦 BANCA DI PUGLIA RP — APERTURA CONTO",
-        description="Clicca sul pulsante sottostante per registrare il tuo conto corrente e ricevere subito **€ 1.000**!",
-        color=discord.Color.gold()
+        title="🏦 BANCA DI PUGLIA RP — SERVIZI FINANZIARI 🏴‍☠️",
+        description=(
+            "🧟‍♂️ **Benvenuto allo sportello bancario ufficiale!** 👻\n\n"
+            "📋 **Requisiti per l'apertura:**\n"
+            "• Possedere la **Cittadinanza Ufficiale** approvata 📜.\n"
+            "• Inserire i propri dati anagrafici corretti in RP.\n\n"
+            "🎁 **Vantaggi immediati:**\n"
+            "Ricevi subito **€ 1.000** di bonus benvenuto sul tuo nuovo conto corrente!\n\n"
+            "👇 *Clicca sul pulsante sottostante per procedere.*"
+        ),
+        color=discord.Color.from_rgb(230, 126, 34),
+        timestamp=discord.utils.utcnow()
     )
+    if interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+    embed.set_footer(text="Puglia RP • Gestione Finanziaria Sicura 💳", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+
     await interaction.response.send_message(embed=embed, view=VistaContoBancario())
 
 
-@bot.tree.command(name="saldo", description="Visualizza il tuo saldo bancario e i contanti in tuo possesso")
-async def saldo_cmd(interaction: discord.Interaction, utente: discord.Member = None):
-    target = utente or interaction.user
-    eco = get_user_eco(str(target.id))
-
-    embed = discord.Embed(title=f"💰 PORTAFOGLIO & CONTO — {target.display_name}", color=discord.Color.blue(), timestamp=discord.utils.utcnow())
-    embed.add_field(name="💵 Contanti", value=f"`€ {eco['cash']:,}`", inline=True)
-    embed.add_field(name="🏦 Saldo Bancario", value=f"`€ {eco['bank']:,}`", inline=True)
-    embed.add_field(name="💳 Stato Conto", value="✅ Attivo" if eco["has_account"] else "❌ Non Attivo", inline=False)
-
-    if target.display_avatar:
-        embed.set_thumbnail(url=target.display_avatar.url)
-
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-@bot.tree.command(name="preleva", description="Preleva denaro dal tuo conto bancario per metterlo in contanti")
-async def preleva_cmd(interaction: discord.Interaction, importo: int):
-    if importo <= 0:
-        await interaction.response.send_message("❌ Inserisci un importo valido!", ephemeral=True)
-        return
-
-    user_id_str = str(interaction.user.id)
-    eco = get_user_eco(user_id_str)
-
-    if not eco.get("has_account"):
-        await interaction.response.send_message("❌ Non possiedi un conto bancario attivo!", ephemeral=True)
-        return
-
-    if eco["bank"] < importo:
-        await interaction.response.send_message(f"❌ Saldo insufficiente (**€ {eco['bank']:,}**).", ephemeral=True)
-        return
-
-    eco["bank"] -= importo
-    eco["cash"] += importo
-    update_user_eco(user_id_str, eco)
-
-    await interaction.response.send_message(
-        f"🏧 **PRELIEVO EFFETTUATO!**\nHai prelevato **€ {importo:,}**.\n"
-        f"• Saldo Banco: `€ {eco['bank']:,}`\n• Contanti: `€ {eco['cash']:,}`",
-        ephemeral=True
-    )
-
-
-@bot.tree.command(name="deposita", description="Deposita contanti sul tuo conto corrente bancario")
-async def deposita_cmd(interaction: discord.Interaction, importo: int):
-    if importo <= 0:
-        await interaction.response.send_message("❌ Inserisci un importo valido!", ephemeral=True)
-        return
-
-    user_id_str = str(interaction.user.id)
-    eco = get_user_eco(user_id_str)
-
-    if not eco.get("has_account"):
-        await interaction.response.send_message("❌ Non possiedi un conto bancario attivo!", ephemeral=True)
-        return
-
-    if eco["cash"] < importo:
-        await interaction.response.send_message(f"❌ Non hai abbastanza contanti (**€ {eco['cash']:,}**).", ephemeral=True)
-        return
-
-    eco["cash"] -= importo
-    eco["bank"] += importo
-    update_user_eco(user_id_str, eco)
-
-    await interaction.response.send_message(
-        f"🏦 **DEPOSITO EFFETTUATO!**\nHai versato **€ {importo:,}**.\n"
-        f"• Saldo Banco: `€ {eco['bank']:,}`\n• Contanti: `€ {eco['cash']:,}`",
-        ephemeral=True
-    )
-
-
-@bot.tree.command(name="paga", description="Paga o dai contanti ad un altro cittadino in RP")
-async def paga_cmd(interaction: discord.Interaction, destinatario: discord.Member, importo: int):
-    if destinatario.id == interaction.user.id:
-        await interaction.response.send_message("❌ Non puoi pagare te stesso!", ephemeral=True)
-        return
-
-    if importo <= 0:
-        await interaction.response.send_message("❌ Inserisci un importo valido!", ephemeral=True)
-        return
-
-    mittente_id = str(interaction.user.id)
-    dest_id = str(destinatario.id)
-
-    eco_mittente = get_user_eco(mittente_id)
-    eco_dest = get_user_eco(dest_id)
-
-    if eco_mittente["cash"] < importo:
-        await interaction.response.send_message(f"❌ Non hai abbastanza contanti in tasca (**€ {eco_mittente['cash']:,}**).", ephemeral=True)
-        return
-
-    eco_mittente["cash"] -= importo
-    eco_dest["cash"] += importo
-
-    update_user_eco(mittente_id, eco_mittente)
-    update_user_eco(dest_id, eco_dest)
-
-    embed = discord.Embed(
-        title="🤝 TRANSAZIONE IN CONTANTI",
-        description=f"Hai consegnato con successo **€ {importo:,}** in contanti a {destinatario.mention}.",
-        color=discord.Color.green(),
-        timestamp=discord.utils.utcnow()
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-@bot.tree.command(name="aggiungi-soldi", description="Aggiungi denaro a un utente (Solo Admin)")
-@app_commands.checks.has_permissions(administrator=True)
-@app_commands.choices(dove=[
-    app_commands.Choice(name="🏦 Banca", value="bank"),
-    app_commands.Choice(name="💵 Contanti", value="cash")
+# ==========================================
+# 💸 MODULO: MULTE AVANZATE (BANCA / CONTANTI + NEGATIVO)
+# ==========================================
+@bot.tree.command(name="multa", description="Emetti una sanzione pecuniaria scalando i fondi da Banca o Contanti")
+@app_commands.describe(
+    utente="L'utente da multare", 
+    importo="Importo della multa", 
+    fonte="Da dove prelevare i soldi", 
+    motivo="Motivazione della multa"
+)
+@app_commands.choices(fonte=[
+    app_commands.Choice(name="🏦 Conto Bancario (Banca)", value="bank"),
+    app_commands.Choice(name="💵 Portafoglio (Contanti)", value="cash")
 ])
-async def add_money_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int, dove: app_commands.Choice[str]):
+async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int, fonte: app_commands.Choice[str], motivo: str):
+    await interaction.response.defer(ephemeral=True)
+
+    if importo <= 0:
+        await interaction.followup.send("❌ L'importo della multa deve essere maggiore di zero!", ephemeral=True)
+        return
+
     user_id_str = str(utente.id)
     eco = get_user_eco(user_id_str)
 
-    eco[dove.value] += importo
+    # 1. Controllo se sceglie la Banca ma non ha il conto
+    if fonte.value == "bank" and not eco.get("has_account"):
+        await interaction.followup.send(
+            f"❌ **Impossibile emettere la multa!** {utente.mention} **non possiede un conto bancario attivo**, quindi non è possibile scalare i fondi dalla banca.",
+            ephemeral=True
+        )
+        return
+
+    # 2. Scaliamo i soldi (permettendo anche l'andata in negativo)
+    eco[fonte.value] -= importo
     update_user_eco(user_id_str, eco)
 
-    luogo = "Banca" if dove.value == "bank" else "Contanti"
-    await interaction.response.send_message(f"✅ Aggiunti **€ {importo:,}** in **{luogo}** per {utente.mention}.", ephemeral=True)
+    # 3. Invio nel canale registro multe
+    canale_multe = interaction.guild.get_channel(ID_CANALE_REGISTRO_MULTE)
+    if canale_multe:
+        embed_log = discord.Embed(
+            title="💸 NOTIFICA DI SANZIONE / MULTA — PUGLIA RP",
+            color=discord.Color.orange(),
+            timestamp=discord.utils.utcnow()
+        )
+        embed_log.add_field(name="👤 Sanzionato", value=utente.mention, inline=True)
+        embed_log.add_field(name="👮 Emessa da", value=interaction.user.mention, inline=True)
+        embed_log.add_field(name="💰 Importo", value=f"**€ {importo:,}**", inline=True)
+        embed_log.add_field(name="📍 Prelevato da", value="🏦 Conto Bancario" if fonte.value == "bank" else "💵 Portafoglio", inline=True)
+        embed_log.add_field(name="📊 Saldo Residuo Utente", value=f"• Banca: `€ {eco['bank']:,}`\n• Contanti: `€ {eco['cash']:,}`", inline=False)
+        embed_log.add_field(name="📋 Motivazione", value=f"```{motivo}```", inline=False)
+
+        if utente.display_avatar:
+            embed_log.set_thumbnail(url=utente.display_avatar.url)
+
+        await canale_multe.send(embed=embed_log)
+
+    fonte_testo = "Conto Bancario" if fonte.value == "bank" else "Portafoglio"
+    await interaction.followup.send(
+        f"✅ Multa di **€ {importo:,}** emessa con successo a {utente.mention} (prelevata da **{fonte_testo}**).\n"
+        f"Nuovo saldo utente: 🏦 `€ {eco['bank']:,}` | 💵 `€ {eco['cash']:,}`",
+        ephemeral=True
+    )
 
 # ==========================================
 # 🆔 MODULO: IDENTIFICAZIONE STAFF & REVOCA
