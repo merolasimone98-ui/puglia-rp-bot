@@ -801,4 +801,7 @@ async def sessione(interaction: discord.Interaction, codice: str, banner: str = 
         view=VistaSessionePuglia(codice)
     )
      
+import os
+
+TOKEN = os.getenv('DISCORD_TOKEN')
 bot.run(TOKEN)
