@@ -58,6 +58,8 @@ ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
 ID_CANALE_REGISTRO_MULTE = 1563215066411696299
 ID_CANALE_CONTO_BANCARIO = 1563216017851949227
 ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
+ID_CANALE_LOG_DOCUMENTI = 1562891209675116544 
+ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
 
 # ==========================================
 # 💾 GESTIONE PERSISTENZA DATI (JSON)
@@ -1170,7 +1172,7 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
 # 📝 MODALE IDENTIFICAZIONE STAFF (Senza ID Numerico)
 # ==========================================
 class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Puglia RP"):
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. Player123", required=True, max_length=40)
     nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
     ruolo_staff = discord.ui.TextInput(label="🛡️ Ruolo / Grado Staff", placeholder="Es. Trial / Helper / Admin", required=True, max_length=30)
 
