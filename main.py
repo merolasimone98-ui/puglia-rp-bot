@@ -751,6 +751,49 @@ async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Me
     await interaction.followup.send(f"✅ Rimossi **€ {importo:,}** dal **{dove_testo}** di {utente.mention}!", ephemeral=True)
 
 # ==========================================
+# ❌ COMANDO /REVOCA (Solo Admin)
+# ==========================================
+@bot.tree.command(name="revoca", description="Revoca un documento o l'identificazione Staff ad un utente (Solo Admin)")
+@app_commands.describe(utente="L'utente a cui revocare l'identificazione/documento", tipo="Cosa vuoi revocare?")
+@app_commands.choices(tipo=[
+    app_commands.Choice(name="🛡️ Identificazione Staff", value="staff"),
+    app_commands.Choice(name="📄 Conto Bancario / Documenti", value="documenti")
+])
+@app_commands.checks.has_permissions(administrator=True)
+async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
+    await interaction.response.defer(ephemeral=True)
+
+    user_id_str = str(utente.id)
+    data = load_data()
+    modificato = False
+
+    if tipo.value == "staff":
+        staff_data = data.get("identificazioni_staff", {})
+        if user_id_str in staff_data:
+            del staff_data[user_id_str]
+            data["identificazioni_staff"] = staff_data
+            modificato = True
+            messaggio = f"✅ L'identificazione Staff di {utente.mention} è stata revocata con successo!"
+        else:
+            messaggio = f"❌ {utente.mention} non possiede un'identificazione Staff attiva."
+
+    elif tipo.value == "documenti":
+        eco_data = data.get("economia", {}).get(user_id_str, {})
+        if eco_data.get("has_account") or eco_data.get("bank", 0) > 0:
+            eco_data["has_account"] = False
+            eco_data["bank"] = 0
+            data.setdefault("economia", {})[user_id_str] = eco_data
+            modificato = True
+            messaggio = f"✅ Il conto bancario e i documenti di {utente.mention} sono stati revocati!"
+        else:
+            messaggio = f"❌ {utente.mention} non ha conti o documenti attivi registrati."
+
+    if modificato:
+        save_data(data)
+
+    await interaction.followup.send(messaggio, ephemeral=True)
+
+# ==========================================
 # 🛠️ GESTIONE SERVIZIO E LEADERBOARD STAFF
 # ==========================================
 
