@@ -587,19 +587,16 @@ class VistaContoBancario(discord.ui.View):
 
     @discord.ui.button(label="Apri Conto Bancario", style=discord.ButtonStyle.success, emoji="💳", custom_id="btn_apri_conto")
     async def btn_apri_conto(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id_str = str(interaction.user.id)
-        eco = get_user_eco(user_id_str)
-
-        if eco.get("has_account"):
-            await interaction.response.send_message("❌ Hai già aperto un conto corrente bancario!", ephemeral=True)
-            return
-
+        # Apriamo SUBITO la modale senza attendere controlli di rete per evitare "Unknown interaction"
         await interaction.response.send_modal(ModalApriConto())
 
 
 @bot.tree.command(name="pannello-contobancario", description="Invia il nuovo pannello per l'apertura del conto bancario (Solo Admin)")
 @app_commands.checks.has_permissions(administrator=True)
 async def pannello_conto_cmd(interaction: discord.Interaction):
+    # Notifichiamo subito a Discord che l'operazione è in corso
+    await interaction.response.defer()
+
     embed = discord.Embed(
         title="🏦 BANCA DI PUGLIA RP — SERVIZI FINANZIARI 🏴‍☠️",
         description=(
@@ -618,8 +615,7 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
         embed.set_thumbnail(url=interaction.guild.icon.url)
     embed.set_footer(text="Puglia RP • Gestione Finanziaria Sicura 💳", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
 
-    await interaction.response.send_message(embed=embed, view=VistaContoBancario())
-
+    await interaction.followup.send(embed=embed, view=VistaContoBancario())
 
 # ==========================================
 # 💸 MODULO: MULTE AVANZATE (BANCA / CONTANTI + NEGATIVO)
