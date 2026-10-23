@@ -284,22 +284,43 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
         await interaction.followup.send("🎃 **Richiesta di Cittadinanza inviata allo Staff per la revisione!** 👻", ephemeral=True)
 
 
-# --- Modale Patente (Con Modello e Targa) ---
+# --- Modale Patente (Ordinata e Senza Roblox) ---
 class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
+    nome_cognome = discord.ui.TextInput(
+        label="📜 Nome e Cognome RP", 
+        placeholder="Es. Mario Rossi", 
+        required=True, 
+        max_length=40
+    )
     categoria = discord.ui.TextInput(
         label="🚗 Categoria Patente (A, B, C o D)", 
         placeholder="A, B, C oppure D", 
         max_length=1, 
         required=True
     )
-    modello_veicolo = discord.ui.TextInput(label="🚘 Modello Veicolo", placeholder="Es. Wolfsburg Marin", required=True, max_length=40)
-    targa_veicolo = discord.ui.TextInput(label="🔢 Targa Veicolo", placeholder="Es. AB/CD/10", required=True, max_length=15)
+    modello_veicolo = discord.ui.TextInput(
+        label="🚘 Modello Veicolo", 
+        placeholder="Es. Wolfsburg Marin", 
+        required=True, 
+        max_length=40
+    )
+    targa_veicolo = discord.ui.TextInput(
+        label="🔢 Targa Veicolo", 
+        placeholder="Es. AB/CD/10", 
+        required=True, 
+        max_length=15
+    )
+    motivazione = discord.ui.TextInput(
+        label="📋 Motivazione della Richiesta", 
+        placeholder="Es. Per uso lavorativo", 
+        required=True, 
+        max_length=200
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         cat_upper = self.categoria.value.strip().upper()
 
+        # 1. Controllo Categoria (A, B, C, D)
         if cat_upper not in ['A', 'B', 'C', 'D']:
             await interaction.response.send_message(
                 "❌ **Categoria Non Valida!** Inserisci solo la lettera **A**, **B**, **C** oppure **D** 🏍️🚗🚛🚌.", 
@@ -307,6 +328,7 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
+        # 2. Controllo Possesso Ruolo Patente
         ruolo_patente_id = RUOLI_PATENTI.get(cat_upper)
         ruolo_patente = interaction.guild.get_role(ruolo_patente_id) if ruolo_patente_id else None
 
@@ -323,6 +345,7 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
         data = load_data()
         cittadinanze = data.get("cittadinanze", {})
 
+        # 3. Verifico la presenza della Cittadinanza
         if user_id_str not in cittadinanze:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
@@ -332,15 +355,11 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
 
         dati_reg = cittadinanze[user_id_str]
         
-        nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
-        roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
-
-        if nome_errato or roblox_errato:
+        # 4. Controllo corrispondenza Nome RP
+        if self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower():
             await interaction.followup.send(
-                "❌ **Dati non corrispondenti alla Cittadinanza!**\n"
-                "I dati inseriti devono essere **identici** a quelli inviati nella tua Cittadinanza Ufficiale:\n"
-                f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
-                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`",
+                "❌ **Nome RP non corrispondente alla Cittadinanza!**\n"
+                f"Il nome inserito deve essere identico a quello registrato: `{dati_reg['nome_rp']}`.",
                 ephemeral=True
             )
             return
@@ -357,18 +376,20 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
         )
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
         embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
-        embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
+        embed.add_field(name="🎮 Account Roblox", value=f"`{dati_reg.get('roblox_user', 'N/D')}`", inline=True)
         embed.add_field(name="🛞 Categoria", value=f"**Patente {cat_upper}**", inline=True)
         embed.add_field(name="🚘 Modello Veicolo", value=f"`{self.modello_veicolo.value}`", inline=True)
         embed.add_field(name="🔢 Targa Veicolo", value=f"`{self.targa_veicolo.value}`", inline=True)
+        embed.add_field(name="📋 Motivazione", value=f"```\n{self.motivazione.value}\n```", inline=False)
 
         view_staff = VistaApprovazioneStaff(
             tipo_documento=f"Patente {cat_upper}",
             nome_rp=self.nome_cognome.value,
-            roblox_user=self.roblox_user.value,
+            roblox_user=dati_reg.get('roblox_user', 'N/D'),
             cat_patente=cat_upper,
             modello_veicolo=self.modello_veicolo.value,
             targa_veicolo=self.targa_veicolo.value,
+            motivazione=self.motivazione.value,
             target_user_id=interaction.user.id
         )
 
