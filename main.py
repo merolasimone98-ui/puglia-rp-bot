@@ -894,70 +894,79 @@ def format_minutes(total_minutes):
 # ==========================================
 # MODALE E BOTTONI PER IDENTIFICAZIONE
 # ==========================================
-class IdentificationModal(ui.Modal, title="Identificazione Staff Puglia RP"):
-    nome_discord = ui.TextInput(label="Nome Discord", placeholder="Es. simone_rp", required=True)
-    nome_roblox = ui.TextInput(label="Nome Roblox", placeholder="Es. Player123", required=True)
-    nome_rp = ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Marco Rossi", required=True)
-    grado_staff = ui.TextInput(label="Grado Staff", placeholder="Es. Mod / Admin / Helper", required=True)
+class IdentificationModal(discord.ui.Modal, title="Identificazione Staff Puglia RP"):
+    roblox_name = discord.ui.TextInput(
+        label="Nome Utente Roblox",
+        placeholder="Inserisci il tuo nome utente esatto di Roblox",
+        required=True
+    )
+    rp_name = discord.ui.TextInput(
+        label="Nome e Cognome RP",
+        placeholder="Es: Mario Rossi",
+        required=True
+    )
+    rank = discord.ui.TextInput(
+        label="Grado Staff",
+        placeholder="Es: Helper, Moderatore, Admin...",
+        required=True
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         user_id_str = str(interaction.user.id)
         data = load_data()
 
+        # Salvataggio dati
         data["users"][user_id_str] = {
-            "discord_name": self.nome_discord.value,
-            "roblox_name": self.nome_roblox.value,
-            "rp_name": self.nome_rp.value,
-            "grado": self.grado_staff.value,
-            "registered_at": datetime.utcnow().isoformat()
+            "discord_name": interaction.user.name,
+            "roblox_name": self.roblox_name.value,
+            "rp_name": self.rp_name.value,
+            "rank": self.rank.value,
+            "total_seconds": 0
         }
         save_data(data)
 
-        guild = bot.get_guild(interaction.guild_id) if interaction.guild else None
-        member = None
-        if guild:
-            member = guild.get_member(interaction.user.id)
-            if member:
-                role_identificato = guild.get_role(ROLE_STAFF_IDENTIFICATO_ID)
-                if role_identificato:
-                    try:
-                        await member.add_roles(role_identificato)
-                    except Exception as e:
-                        print(f"Errore nell'assegnare il ruolo identificato: {e}")
+        # Assegnazione Ruolo "Staff Identificato"
+        ROLE_STAFF_IDENTIFICATO_ID = 1562507751975035065
+        role = interaction.guild.get_role(ROLE_STAFF_IDENTIFICATO_ID)
+        if role:
+            try:
+                await interaction.user.add_roles(role)
+            except Exception as e:
+                print(f"Errore nell'assegnare il ruolo: {e}")
 
-        await interaction.response.send_message(
-            "✅ **Identificazione completata con successo!**\n"
-            "Ora possiedi il ruolo **Staff Identificato** e puoi utilizzare il comando `/servizio` nel canale dedicato.",
+        # Creazione Embed per il Post del Forum
+        embed = discord.Embed(
+            title="🆔 NUOVA IDENTIFICAZIONE STAFF",
+            color=discord.Color.green(),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
+        embed.add_field(name="🎮 Roblox", value=f"`{self.roblox_name.value}`", inline=True)
+        embed.add_field(name="🎭 Nome RP", value=self.rp_name.value, inline=True)
+        embed.add_field(name="⭐ Grado", value=self.rank.value, inline=False)
+        
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_footer(text="Puglia RP • Sistema Identificazione Staff")
+
+        # Invio nel Canale Forum
+        FORUM_LOG_STAFF_ID = 1563176554786463894
+        forum_channel = interaction.guild.get_channel(FORUM_LOG_STAFF_ID)
+
+        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+            # Crea un nuovo post nel forum
+            thread_title = f"🆔 Identificazione - {self.rp_name.value} ({interaction.user.name})"
+            await forum_channel.create_thread(
+                name=thread_title,
+                embed=embed
+            )
+
+        # Risposta privata all'utente
+        await interaction.followup.send(
+            "✅ **Identificazione completata con successo!** Dati salvati e post creato nei Log Staff.",
             ephemeral=True
         )
-
-        if guild:
-            log_channel = guild.get_channel(LOG_CHANNEL_ID)
-            if log_channel:
-                embed_log = discord.Embed(
-                    title="📝 NUOVA IDENTIFICAZIONE STAFF",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.now(timezone.utc)
-                )
-                embed_log.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
-                embed_log.add_field(name="🎮 Roblox", value=self.nome_roblox.value, inline=True)
-                embed_log.add_field(name="🪪 Nome RP", value=self.nome_rp.value, inline=True)
-                embed_log.add_field(name="⭐ Grado", value=self.grado_staff.value, inline=True)
-                embed_log.set_footer(text="Puglia RP • Sistema Identificazione")
-                await log_channel.send(embed=embed_log)
-
-class DMIdentificationView(ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @ui.button(label="🆔 Effettua Identificazione", style=discord.ButtonStyle.primary, custom_id="btn_identifica_dm")
-    async def identifica_button(self, interaction: discord.Interaction, button: ui.Button):
-        data = load_data()
-        user_id_str = str(interaction.user.id)
-        if user_id_str in data["users"]:
-            await interaction.response.send_message("❌ Risulti già identificato nel sistema di Puglia RP!", ephemeral=True)
-            return
-        await interaction.response.send_modal(IdentificationModal())
 
 # ==========================================
 # EVENTO ASSEGNAZIONE RUOLO STAFF BASE
