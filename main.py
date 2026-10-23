@@ -26,10 +26,25 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
+                
+# ⚙️ CONFIGURAZIONE CANALI
+ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544  # #accettazione-cittadinanza-staff
+ID_FORUM_DOCUMENTI = 1562891782415450183            # #documenti-cittadinanza (Forum)
+
+
+
+
 
 # ⚙️ CONFIGURAZIONE CANALI
 ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544  # #accettazione-cittadinanza-staff
 ID_FORUM_DOCUMENTI = 1562891782415450183            # #documenti-cittadinanza (Forum)
+LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg?ex=6adc9a49&is=6adb48c9&hm=889b0be762da4780fd7225ff6632c4ae457b26a5d1b1f6bfdadb3c413816c642&=&format=webp"
+ID_CANALE_COMANDO_RECENSIONI = 1563193613452841061
+ID_CANALE_LOG_RECENSIONI = 1563193654154100836
+
+
+
+
 
 # ⚙️ CONFIGURAZIONE RUOLI
 ID_RUOLO_CITTADINO = 1562894350135066674
@@ -1294,6 +1309,89 @@ async def lista_staff_cmd(interaction: discord.Interaction):
     
     # Invia la lista visibile a chi esegue il comando
     await interaction.response.send_message(embed=embed)
+
+# ==========================================
+# ⭐ COMANDO /recensisci-staff
+# ==========================================
+@bot.tree.command(name="recensisci-staff", description="Invia una recensione per un membro dello Staff di Puglia RP")
+@app_commands.describe(
+    staffer="Il membro dello staff da recensire",
+    valutazione="Valutazione da 1 a 10 stelle",
+    motivo="Motivazione o commento sulla recensione"
+)
+@app_commands.choices(valutazione=[
+    app_commands.Choice(name="⭐ 1 / 10", value=1),
+    app_commands.Choice(name="⭐⭐ 2 / 10", value=2),
+    app_commands.Choice(name="⭐⭐⭐ 3 / 10", value=3),
+    app_commands.Choice(name="⭐⭐⭐⭐ 4 / 10", value=4),
+    app_commands.Choice(name="⭐⭐⭐⭐⭐ 5 / 10", value=5),
+    app_commands.Choice(name="⭐⭐⭐⭐⭐⭐ 6 / 10", value=6),
+    app_commands.Choice(name="⭐⭐⭐⭐⭐⭐⭐ 7 / 10", value=7),
+    app_commands.Choice(name="⭐⭐⭐⭐⭐⭐⭐⭐ 8 / 10", value=8),
+    app_commands.Choice(name="⭐⭐⭐⭐⭐⭐⭐⭐⭐ 9 / 10", value=9),
+    app_commands.Choice(name="🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟 10 / 10", value=10)
+])
+async def recensisci_staff_cmd(
+    interaction: discord.Interaction, 
+    staffer: discord.Member, 
+    valutazione: app_commands.Choice[int], 
+    motivo: str
+):
+    # Controllo canale di esecuzione
+    if interaction.channel.id != ID_CANALE_COMANDO_RECENSIONI:
+        await interaction.response.send_message(
+            f"❌ **NON PUOI USARE QUESTO COMANDO QUI!** Puoi rilasciare recensioni solo nel canale dedicato: <#{ID_CANALE_COMANDO_RECENSIONI}>.",
+            ephemeral=True
+        )
+        return
+
+    # Risposta immediata per evitare il timeout
+    await interaction.response.defer(ephemeral=True)
+
+    # Canale di destinazione dove inviare l'embed della recensione
+    canale_log = interaction.guild.get_channel(ID_CANALE_LOG_RECENSIONI)
+    if not canale_log:
+        await interaction.followup.send(
+            "❌ Errore: Canale dei log recensioni non trovato. Avvisa un amministratore.",
+            ephemeral=True
+        )
+        return
+
+    # Costruzione delle stelle grafiche
+    stelle_grafiche = "⭐" * valutazione.value
+
+    # Creazione Embed Recensione
+    embed = discord.Embed(
+        title="🌟 NUOVA RECENSIONE STAFF — PUGLIA RP 🌟",
+        color=discord.Color.from_rgb(230, 126, 34), # Arancione autunnale / Halloween
+        timestamp=discord.utils.utcnow()
+    )
+
+    embed.add_field(name="👮 Staffer Recensito", value=staffer.mention, inline=True)
+    embed.add_field(name="👤 Recensito da", value=interaction.user.mention, inline=True)
+    embed.add_field(name="⭐ Valutazione", value=f"**{valutazione.value}/10**\n{stelle_grafiche}", inline=False)
+    embed.add_field(name="💬 Motivazione", value=f"```{motivo}```", inline=False)
+
+    if staffer.display_avatar:
+        embed.set_thumbnail(url=staffer.display_avatar.url)
+
+    # Immagine della Recensione Staff in grande sotto il pannello
+    if LINK_IMMAGINE_RECENSIONE:
+        embed.set_image(url=LINK_IMMAGINE_RECENSIONE)
+
+    embed.set_footer(
+        text="Puglia RP Autumn • Sistema Recensioni Ufficiale",
+        icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+    )
+
+    # Invio della recensione nel canale pubblico dei log
+    await canale_log.send(embed=embed)
+
+    # Conferma privata all'utente
+    await interaction.followup.send(
+        f"✅ **Recensione inviata con successo!** Grazie per il tuo feedback su {staffer.mention}.",
+        ephemeral=True
+    )
 
 # ==========================================
 # TASK AUTOMATICO: RESET & LEADERBOARD LUNEDÌ
