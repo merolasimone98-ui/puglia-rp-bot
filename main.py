@@ -609,17 +609,6 @@ class ViewRevocaDocumento(discord.ui.View):
         self.add_item(SelectRevocaDocumento(utente_target))
 
 
-# 🛠️ COMANDO SLASH NATIVO: /revoca (Rendiamo il pannello EFFIMERO/PRIVATO)
-@bot.tree.command(name="revoca", description="Revoca un documento ad un utente (Solo Admin)")
-@app_commands.checks.has_permissions(administrator=True)
-async def revoca_slash(interaction: discord.Interaction, utente: discord.Member):
-    embed = discord.Embed(
-        title="🚨 REVOCA DOCUMENTI - PUGLIA RP",
-        description=f"Seleziona dal menu sottostante quale documento vuoi revocare a {utente.mention}:",
-        color=discord.Color.dark_red()
-    )
-    # ephemeral=True lo rende visibile SOLO a chi ha lanciato il comando
-    await interaction.response.send_message(embed=embed, view=ViewRevocaDocumento(utente), ephemeral=True)
 
 
 # 🛠️ COMANDO CLASSICO PREFISSO /: /revoca @utente
