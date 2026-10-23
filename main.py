@@ -1167,12 +1167,12 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
     )
 
 # ==========================================
-# 📝 MODALE IDENTIFICAZIONE STAFF
+# 📝 MODALE IDENTIFICAZIONE STAFF (Senza ID Numerico)
 # ==========================================
 class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Puglia RP"):
     roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
-    roblox_id = discord.ui.TextInput(label="🔢 ID Roblox (Numerico)", placeholder="Es. 123456789", required=True, max_length=20)
-    ruolo_staff = discord.ui.TextInput(label="🛡️ Ruolo / Grado Staff", placeholder="Es. Helper / Mod / Admin", required=True, max_length=30)
+    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    ruolo_staff = discord.ui.TextInput(label="🛡️ Ruolo / Grado Staff", placeholder="Es. Trial / Helper / Admin", required=True, max_length=30)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -1182,25 +1182,45 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
             await interaction.followup.send("❌ Canale log documenti non trovato!", ephemeral=True)
             return
 
+        username_clean = self.roblox_user.value.strip()
+
+        # Recupero automatico dell'ID Roblox tramite API
+        roblox_id = None
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://users.roblox.com/v1/usernames/users",
+                    json={"usernames": [username_clean], "excludeBannedUsers": False}
+                ) as resp:
+                    if resp.status == 200:
+                        res_data = await resp.json()
+                        if res_data.get("data"):
+                            roblox_id = str(res_data["data"][0]["id"])
+        except Exception:
+            roblox_id = None
+
         embed_richiesta = discord.Embed(
             title="📥 NUOVA RICHIESTA IDENTIFICAZIONE STAFF",
             description=(
                 f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
-                f"🎮 **Username Roblox:** `{self.roblox_user.value.strip()}`\n"
-                f"🔢 **ID Roblox:** `{self.roblox_id.value.strip()}`\n"
-                f"🛡️ **Ruolo Richiesto/Dichiarato:** `{self.ruolo_staff.value.strip()}`"
+                f"🎮 **Username Roblox:** `{username_clean}`\n"
+                f"👤 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                f"🛡️ **Ruolo Dichiarato:** `{self.ruolo_staff.value.strip()}`"
             ),
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        embed_richiesta.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={self.roblox_id.value.strip()}&width=420&height=420&format=png")
+
+        if roblox_id:
+            embed_richiesta.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={roblox_id}&width=420&height=420&format=png")
+
         embed_richiesta.set_footer(text="Richiesta in attesa di approvazione Staff/Admin")
 
-        # Invia nel canale Log Documenti con la vista di approvazione
         vista = VistaApprovazioneIdentificazione(
             user_id=str(interaction.user.id),
-            roblox_user=self.roblox_user.value.strip(),
-            roblox_id=self.roblox_id.value.strip(),
+            roblox_user=username_clean,
+            roblox_id=roblox_id or "",
+            nome_rp=self.nome_rp.value.strip(),
             ruolo_staff=self.ruolo_staff.value.strip()
         )
         await canale_log.send(embed=embed_richiesta, view=vista)
@@ -1209,21 +1229,21 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
 
 
 # ==========================================
-# 🔘 PULSANTI ACCETTA / RIFIUTA IDENTIFICAZIONE
+# 🔘 VISTA APPROVAZIONE IDENTIFICAZIONE
 # ==========================================
 class VistaApprovazioneIdentificazione(discord.ui.View):
-    def __init__(self, user_id: str, roblox_user: str, roblox_id: str, ruolo_staff: str):
+    def __init__(self, user_id: str, roblox_user: str, roblox_id: str, nome_rp: str, ruolo_staff: str):
         super().__init__(timeout=None)
         self.user_id = user_id
         self.roblox_user = roblox_user
         self.roblox_id = roblox_id
+        self.nome_rp = nome_rp
         self.ruolo_staff = ruolo_staff
 
     @discord.ui.button(label="✅ Accetta", style=discord.ButtonStyle.success, custom_id="btn_accetta_identificazione")
     async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
 
-        # Salvataggio dati nei record Staff
         data = load_data()
         if "identificazioni_staff" not in data:
             data["identificazioni_staff"] = {}
@@ -1231,55 +1251,50 @@ class VistaApprovazioneIdentificazione(discord.ui.View):
         data["identificazioni_staff"][self.user_id] = {
             "roblox_user": self.roblox_user,
             "roblox_id": self.roblox_id,
+            "nome_rp": self.nome_rp,
             "ruolo": self.ruolo_staff,
             "approvato_da": str(interaction.user.id)
         }
         save_data(data)
 
-        # Modifica dell'embed nei Log
         embed = interaction.message.embeds[0]
         embed.color = discord.Color.green()
         embed.title = "✅ IDENTIFICAZIONE STAFF APPROVATA"
         embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
 
-        # Disabilita i pulsanti
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(embed=embed, view=self)
 
-        # 📌 CREAZIONE POST NEL FORUM STAFF
+        # 📌 POST AUTOMATICO NEL FORUM STAFF
         forum_channel = interaction.guild.get_channel(ID_FORUM_STAFF_IDENTIFICATI)
         if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-            member = interaction.guild.get_member(int(self.user_id))
-            nome_display = member.display_name if member else self.roblox_user
-
             embed_forum = discord.Embed(
                 title=f"🛡️ STAFF IDENTIFICATO — {self.roblox_user}",
                 description=(
                     f"👤 **Membro Staff:** <@{self.user_id}>\n"
                     f"🎮 **Username Roblox:** `{self.roblox_user}`\n"
-                    f"🔢 **ID Roblox:** `{self.roblox_id}`\n"
+                    f"👤 **Nome RP:** `{self.nome_rp}`\n"
                     f"🎖️ **Grado Staff:** `{self.ruolo_staff}`\n\n"
                     "✅ *Identificazione ufficiale registrata nel database di Puglia RP.*"
                 ),
                 color=discord.Color.blue(),
                 timestamp=discord.utils.utcnow()
             )
-            embed_forum.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={self.roblox_id}&width=420&height=420&format=png")
+            if self.roblox_id:
+                embed_forum.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={self.roblox_id}&width=420&height=420&format=png")
 
             await forum_channel.create_thread(
                 name=f"🛡️丨{self.roblox_user} ({self.ruolo_staff})",
                 embed=embed_forum
             )
 
-        # Notifica in DM all'utente (opzionale)
         try:
             target_member = interaction.guild.get_member(int(self.user_id))
             if target_member:
                 await target_member.send(f"🎉 **Complimenti!** La tua identificazione Staff come **{self.roblox_user}** è stata approvata!")
         except Exception:
             pass
-
 
     @discord.ui.button(label="❌ Rifiuta", style=discord.ButtonStyle.danger, custom_id="btn_rifiuta_identificazione")
     async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
