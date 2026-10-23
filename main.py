@@ -737,6 +737,9 @@ async def lista_staff_cmd(interaction: discord.Interaction):
 async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
     await interaction.response.defer(ephemeral=True)
 
+    user_id_str = str(utente.id)
+    data = load_data()
+
     # 1. Revoca Identificazione Staff
     if tipo.value == "staff":
         role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
@@ -746,17 +749,60 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
             except Exception as e:
                 print(f"Errore rimozione ruolo staff: {e}")
 
-        data = load_data()
-        if str(utente.id) in data.get("users", {}):
-            del data["users"][str(utente.id)]
+        if user_id_str in data.get("users", {}):
+            del data["users"][user_id_str]
             save_data(data)
 
         await interaction.followup.send(f"⚠️ **Identificazione Staff revocata** a {utente.mention}.", ephemeral=True)
         return
 
-    # 2. Revoca Cittadinanza ed Eliminazione Post Forum
+    # Helper per eliminare i post nel Forum per un determinato documento o per tutti
+    async def elimina_post_forum(parola_chiave_tipo=None):
+        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+        eliminati_count = 0
+        if forum and isinstance(forum, discord.ForumChannel):
+            try:
+                threads = list(forum.threads)
+                async for archived_thread in forum.archived_threads(limit=100):
+                    threads.append(archived_thread)
+
+                for thread in threads:
+                    # Controlla se il titolo contiene il tag/nome utente
+                    match_utente = (
+                        f"@{utente.name}" in thread.name 
+                        or utente.name in thread.name 
+                        or str(utente.id) in thread.name
+                    )
+
+                    # Controlla se corrisponde al tipo di documento (se specificato)
+                    match_tipo = True
+                    if parola_chiave_tipo:
+                        match_tipo = parola_chiave_tipo.lower() in thread.name.lower()
+
+                    if match_utente and match_tipo:
+                        try:
+                            await thread.delete()
+                            eliminati_count += 1
+                        except Exception as e:
+                            print(f"Errore eliminazione thread {thread.id}: {e}")
+
+                    # Controllo di sicurezza aggiuntivo nel primo messaggio del post
+                    else:
+                        try:
+                            async for msg in thread.history(limit=1, oldest_first=True):
+                                if utente.mention in msg.content or str(utente.id) in msg.content:
+                                    if not parola_chiave_tipo or parola_chiave_tipo.lower() in thread.name.lower():
+                                        await thread.delete()
+                                        eliminati_count += 1
+                        except Exception:
+                            pass
+
+            except Exception as e:
+                print(f"Errore scansione forum: {e}")
+        return eliminati_count
+
+    # 2. Revoca Cittadinanza (rimuove ruolo, dati JSON e post dal Forum)
     if tipo.value == "cittadinanza":
-        # Rimuovi Ruolo Cittadino
         ruolo_cittadino = interaction.guild.get_role(ID_RUOLO_CITTADINO)
         if ruolo_cittadino and ruolo_cittadino in utente.roles:
             try:
@@ -764,38 +810,46 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
             except Exception as e:
                 print(f"Errore rimozione ruolo cittadino: {e}")
 
-        # Rimuovi dai salvataggi JSON
-        user_id_str = str(utente.id)
-        data = load_data()
         if "cittadinanze" in data and user_id_str in data["cittadinanze"]:
             del data["cittadinanze"][user_id_str]
         if "rp_names" in data and user_id_str in data["rp_names"]:
             del data["rp_names"][user_id_str]
         save_data(data)
 
-        # Cerca ed elimina il post nel Forum Documenti
-        post_eliminato = False
-        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        
-        if forum and isinstance(forum, discord.ForumChannel):
+        num_eliminati = await elimina_post_forum("Cittadinanza")
+        msg_post = f" 🗑️ **Post Cittadinanza eliminato dal Forum!**" if num_eliminati > 0 else " ⚠️ *(Nessun post trovato nel Forum per la Cittadinanza)*."
+        await interaction.followup.send(f"🚫 **Cittadinanza revocata** a {utente.mention}.{msg_post}", ephemeral=True)
+        return
+
+    # 3. Revoca Patenti (A, B, C, D)
+    if tipo.value.startswith("patente_"):
+        lettera = tipo.value.split("_")[1].upper()
+        ruolo_id = RUOLI_PATENTI.get(lettera)
+        if ruolo_id:
+            ruolo_patente = interaction.guild.get_role(ruolo_id)
+            if ruolo_patente and ruolo_patente in utente.roles:
+                try:
+                    await utente.remove_roles(ruolo_patente)
+                except Exception as e:
+                    print(f"Errore revoca patente: {e}")
+
+        num_eliminati = await elimina_post_forum(f"Patente {lettera}")
+        msg_post = f" 🗑️ **Post Patente {lettera} eliminato dal Forum!**" if num_eliminati > 0 else f" ⚠️ *(Nessun post trovato per Patente {lettera})*."
+        await interaction.followup.send(f"🚫 **Patente {lettera} revocata** a {utente.mention}.{msg_post}", ephemeral=True)
+        return
+
+    # 4. Revoca Porto d'Armi
+    if tipo.value == "armi":
+        ruolo_armi = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+        if ruolo_armi and ruolo_armi in utente.roles:
             try:
-                # Cerca tra i thread attivi nel Forum
-                threads = forum.threads
-                # Cerca anche tra i thread archiviati
-                async for archived_thread in forum.archived_threads(limit=100):
-                    threads.append(archived_thread)
-
-                for thread in threads:
-                    # Se il titolo del post contiene il nome utente Discord o l'ID
-                    if f"@{utente.name}" in thread.name or f"[{utente.name}]" in thread.name or f"Cittadinanza" in thread.name and f"@{utente.name}" in thread.name:
-                        await thread.delete()
-                        post_eliminato = True
-                        break
+                await utente.remove_roles(ruolo_armi)
             except Exception as e:
-                print(f"Errore eliminazione post forum: {e}")
+                print(f"Errore revoca porto d'armi: {e}")
 
-        msg_forum = " 🗑️ **Post della Cittadinanza eliminato dal Forum!**" if post_eliminato else " ⚠️ *(Nessun post trovato nel Forum per questo utente)*."
-        await interaction.followup.send(f"🚫 **Cittadinanza revocata** a {utente.mention}.{msg_forum}", ephemeral=True)
+        num_eliminati = await elimina_post_forum("Porto d'Armi")
+        msg_post = f" 🗑️ **Post Porto d'Armi eliminato dal Forum!**" if num_eliminati > 0 else " ⚠️ *(Nessun post trovato per Porto d'Armi)*."
+        await interaction.followup.send(f"🚫 **Porto d'Armi revocato** a {utente.mention}.{msg_post}", ephemeral=True)
         return
 
     # 3. Revoca Patenti o Porto d'Armi
