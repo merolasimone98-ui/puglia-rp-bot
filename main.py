@@ -572,10 +572,8 @@ class ViewGestioneGenerica(discord.ui.View):
 ])
 async def revoca_slash(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
     try:
-        # Previene subito il timeout di 3 secondi di Discord
         await interaction.response.defer(ephemeral=True)
 
-        # ID Ruolo Staff Base / Identificato
         STAFF_ROLE_ID = 1562507751975035065
 
         # --- 1. REVOCA IDENTIFICAZIONE STAFF ---
