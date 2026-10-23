@@ -545,10 +545,11 @@ class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
         data = load_data()
         cittadinanze = data.get("cittadinanze", {})
 
-        # Controllo obbligatorio: deve avere la Cittadinanza
+        # Controllo obbligatorio: deve avere la Cittadinanza con link al canale corretto
         if user_id_str not in cittadinanze:
             await interaction.followup.send(
-                "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** prima di aprire un conto bancario 📜.",
+                "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo nel canale apposito "
+                f"<#1562891119824601258> per ottenere la **Cittadinanza Ufficiale** prima di poter aprire un conto bancario 📜.",
                 ephemeral=True
             )
             return
