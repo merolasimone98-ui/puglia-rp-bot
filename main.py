@@ -163,6 +163,7 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
 
 
 # --- Modale per Patenti (Controllo Categoria e Nome RP) ---
+# --- Modale per Patenti (Ottimizzata e Senza Lag) ---
 class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale"):
     nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
     roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True)
@@ -175,41 +176,43 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        # 1. Risposta immediata per evitare "L'applicazione non ha risposto"
+        await interaction.response.defer(ephemeral=True)
+
         user_id_str = str(interaction.user.id)
         data = load_data()
         rp_names = data.get("rp_names", {})
 
-        # 1. Verifica Cittadinanza
+        # 2. Verifica Cittadinanza
         if user_id_str not in rp_names:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** 📜.",
                 ephemeral=True
             )
             return
 
-        # 2. Verifica Nome RP Identico
+        # 3. Verifica Nome RP Identico
         nome_registrato = rp_names[user_id_str].lower()
         nome_inserito = self.nome_cognome.value.strip().lower()
 
         if nome_inserito != nome_registrato:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"🚫 **Nome RP Errato!**\nIl nome inserito (`{self.nome_cognome.value}`) non corrisponde a quello della tua Cittadinanza (`{rp_names[user_id_str]}`) 🧟‍♂️.",
                 ephemeral=True
             )
             return
 
-        # 3. Controllo Categoria (A, B, C, D)
+        # 4. Controllo Categoria Patente
         cat_upper = self.categoria.value.strip().upper()
         if cat_upper not in ['A', 'B', 'C', 'D']:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "❌ **Categoria Non Valida!** Puoi inserire solo una tra queste categorie: **A**, **B**, **C** o **D** 🏍️🚗🚛🚌.", 
                 ephemeral=True
             )
             return
 
-        await interaction.response.defer(ephemeral=True)
+        # 5. Invio al Forum Documenti
         forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-
         if not forum or not isinstance(forum, discord.ForumChannel):
             await interaction.followup.send("❌ **Errore Spettrale:** Canale Forum documenti non trovato!", ephemeral=True)
             return
