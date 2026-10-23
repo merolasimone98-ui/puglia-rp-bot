@@ -756,8 +756,8 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
         await interaction.followup.send(f"⚠️ **Identificazione Staff revocata** a {utente.mention}.", ephemeral=True)
         return
 
-    # Helper per eliminare i post nel Forum per un determinato documento o per tutti
-    async def elimina_post_forum(parola_chiave_tipo=None):
+    # Helper avanzato per cercare ed eliminare il post nel Forum
+    async def elimina_post_forum(parola_chiave_tipo):
         forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
         eliminati_count = 0
         if forum and isinstance(forum, discord.ForumChannel):
@@ -767,41 +767,32 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                     threads.append(archived_thread)
 
                 for thread in threads:
-                    # Controlla se il titolo contiene il tag/nome utente
-                    match_utente = (
-                        f"@{utente.name}" in thread.name 
-                        or utente.name in thread.name 
-                        or str(utente.id) in thread.name
-                    )
+                    # Verifica che il tipo di documento sia nel titolo del post
+                    if parola_chiave_tipo.lower() in thread.name.lower():
+                        # Cerca il primo messaggio inviato nel thread per verificare la menzione/ID utente
+                        async for msg in thread.history(limit=1, oldest_first=True):
+                            # Controllo tramite menzione, ID o embed
+                            trovato = False
+                            if utente.mention in msg.content or str(utente.id) in msg.content:
+                                trovato = True
+                            elif msg.embeds:
+                                embed_text = str(msg.embeds[0].to_dict())
+                                if str(utente.id) in embed_text or utente.mention in embed_text:
+                                    trovato = True
 
-                    # Controlla se corrisponde al tipo di documento (se specificato)
-                    match_tipo = True
-                    if parola_chiave_tipo:
-                        match_tipo = parola_chiave_tipo.lower() in thread.name.lower()
-
-                    if match_utente and match_tipo:
-                        try:
-                            await thread.delete()
-                            eliminati_count += 1
-                        except Exception as e:
-                            print(f"Errore eliminazione thread {thread.id}: {e}")
-
-                    # Controllo di sicurezza aggiuntivo nel primo messaggio del post
-                    else:
-                        try:
-                            async for msg in thread.history(limit=1, oldest_first=True):
-                                if utente.mention in msg.content or str(utente.id) in msg.content:
-                                    if not parola_chiave_tipo or parola_chiave_tipo.lower() in thread.name.lower():
-                                        await thread.delete()
-                                        eliminati_count += 1
-                        except Exception:
-                            pass
+                            if trovato:
+                                try:
+                                    await thread.delete()
+                                    eliminati_count += 1
+                                except Exception as e:
+                                    print(f"Errore eliminazione thread {thread.id}: {e}")
+                                break
 
             except Exception as e:
                 print(f"Errore scansione forum: {e}")
         return eliminati_count
 
-    # 2. Revoca Cittadinanza (rimuove ruolo, dati JSON e post dal Forum)
+    # 2. Revoca Cittadinanza
     if tipo.value == "cittadinanza":
         ruolo_cittadino = interaction.guild.get_role(ID_RUOLO_CITTADINO)
         if ruolo_cittadino and ruolo_cittadino in utente.roles:
@@ -821,7 +812,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
         await interaction.followup.send(f"🚫 **Cittadinanza revocata** a {utente.mention}.{msg_post}", ephemeral=True)
         return
 
-    # 3. Revoca Patenti (A, B, C, D)
+    # 3. Revoca Patenti
     if tipo.value.startswith("patente_"):
         lettera = tipo.value.split("_")[1].upper()
         ruolo_id = RUOLI_PATENTI.get(lettera)
