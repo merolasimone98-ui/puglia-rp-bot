@@ -737,24 +737,70 @@ async def lista_staff_cmd(interaction: discord.Interaction):
 async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
     await interaction.response.defer(ephemeral=True)
 
+    # 1. Revoca Identificazione Staff
     if tipo.value == "staff":
         role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
         if role_staff and role_staff in utente.roles:
             try:
                 await utente.remove_roles(role_staff)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Errore rimozione ruolo staff: {e}")
+
         data = load_data()
         if str(utente.id) in data.get("users", {}):
             del data["users"][str(utente.id)]
             save_data(data)
-        await interaction.followup.send(f"⚠️ Identificazione Staff revocata a {utente.mention}.", ephemeral=True)
+
+        await interaction.followup.send(f"⚠️ **Identificazione Staff revocata** a {utente.mention}.", ephemeral=True)
         return
 
-    ruolo_da_rimuovere = None
+    # 2. Revoca Cittadinanza ed Eliminazione Post Forum
     if tipo.value == "cittadinanza":
-        ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-    elif tipo.value.startswith("patente_"):
+        # Rimuovi Ruolo Cittadino
+        ruolo_cittadino = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+        if ruolo_cittadino and ruolo_cittadino in utente.roles:
+            try:
+                await utente.remove_roles(ruolo_cittadino)
+            except Exception as e:
+                print(f"Errore rimozione ruolo cittadino: {e}")
+
+        # Rimuovi dai salvataggi JSON
+        user_id_str = str(utente.id)
+        data = load_data()
+        if "cittadinanze" in data and user_id_str in data["cittadinanze"]:
+            del data["cittadinanze"][user_id_str]
+        if "rp_names" in data and user_id_str in data["rp_names"]:
+            del data["rp_names"][user_id_str]
+        save_data(data)
+
+        # Cerca ed elimina il post nel Forum Documenti
+        post_eliminato = False
+        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+        
+        if forum and isinstance(forum, discord.ForumChannel):
+            try:
+                # Cerca tra i thread attivi nel Forum
+                threads = forum.threads
+                # Cerca anche tra i thread archiviati
+                async for archived_thread in forum.archived_threads(limit=100):
+                    threads.append(archived_thread)
+
+                for thread in threads:
+                    # Se il titolo del post contiene il nome utente Discord o l'ID
+                    if f"@{utente.name}" in thread.name or f"[{utente.name}]" in thread.name or f"Cittadinanza" in thread.name and f"@{utente.name}" in thread.name:
+                        await thread.delete()
+                        post_eliminato = True
+                        break
+            except Exception as e:
+                print(f"Errore eliminazione post forum: {e}")
+
+        msg_forum = " 🗑️ **Post della Cittadinanza eliminato dal Forum!**" if post_eliminato else " ⚠️ *(Nessun post trovato nel Forum per questo utente)*."
+        await interaction.followup.send(f"🚫 **Cittadinanza revocata** a {utente.mention}.{msg_forum}", ephemeral=True)
+        return
+
+    # 3. Revoca Patenti o Porto d'Armi
+    ruolo_da_rimuovere = None
+    if tipo.value.startswith("patente_"):
         lettera = tipo.value.split("_")[1].upper()
         ruolo_da_rimuovere = interaction.guild.get_role(RUOLI_PATENTI.get(lettera))
     elif tipo.value == "armi":
