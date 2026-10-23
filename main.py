@@ -957,7 +957,7 @@ async def task_reset_settimanale():
 
 
 # ==========================================
-# 📌 COMANDI PER APRIRE IL PANNELLO
+# 📌 COMANDO /SERVIZIO AGGIORNATO E CORRETTO
 # ==========================================
 @bot.tree.command(name="servizio", description="Invia il tuo pannello personalizzato di Gestione Servizio Staff")
 async def servizio_cmd(interaction: discord.Interaction):
@@ -965,9 +965,11 @@ async def servizio_cmd(interaction: discord.Interaction):
 
     user_id_str = str(interaction.user.id)
     data = load_data()
-    staff_data = data.get("staff_identificati", {})
 
-    # Controllo Identificazione
+    # Controlliamo in tutte le strutture possibili usate da /identificami
+    staff_data = data.get("identificazioni_staff", data.get("staff_identificati", data.get("staff", {})))
+
+    # Se l'utente non trova la mappa o l'ID non è presente
     if user_id_str not in staff_data:
         await interaction.followup.send(
             "❌ **Non risulti identificato come Staff!** Utilizza prima il comando `/identificami`.",
@@ -976,8 +978,15 @@ async def servizio_cmd(interaction: discord.Interaction):
         return
 
     info_staff = staff_data[user_id_str]
-    roblox_username = info_staff.get("roblox_user", "Sconosciuto")
-    roblox_id = info_staff.get("roblox_id")
+
+    # Estragga il nome e l'id roblox in base a come sono salvati
+    if isinstance(info_staff, dict):
+        roblox_username = info_staff.get("roblox_user", info_staff.get("roblox_username", info_staff.get("nome_roblox", "Sconosciuto")))
+        roblox_id = info_staff.get("roblox_id", info_staff.get("id_roblox"))
+    else:
+        # Se è salvato semplicemente come stringa col nome utente
+        roblox_username = str(info_staff)
+        roblox_id = None
 
     embed = discord.Embed(
         title="🛡️ PANNELLO GESTIONE SERVIZIO STAFF",
@@ -990,7 +999,7 @@ async def servizio_cmd(interaction: discord.Interaction):
         timestamp=datetime.now(timezone.utc)
     )
 
-    # Immagine Profilo Roblox in alto a destra (Thumbnail)
+    # Immagine Profilo Roblox in alto a destra (Thumbnail) se presente l'ID
     if roblox_id:
         embed.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={roblox_id}&width=420&height=420&format=png")
 
