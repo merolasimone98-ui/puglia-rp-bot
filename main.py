@@ -32,6 +32,7 @@ def keep_alive():
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
+intents.presences = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
@@ -47,11 +48,10 @@ RUOLI_PATENTI = {
     'D': 1562894822983860364
 }
 
-ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
 ID_FORUM_DOCUMENTI = 1562891782415450183
 
-ID_CANALE_COMANDO_RECENSIONI = 123456789012345678  # Canale dove eseguire /recensisci-staff
-ID_CANALE_LOG_RECENSIONI = 1563176554786463894      # Canale Forum Recensioni Staff
+ID_CANALE_COMANDO_RECENSIONI = 123456789012345678  # Sostituisci con l'ID del canale recensioni
+ID_CANALE_LOG_RECENSIONI = 1563176554786463894      # Canale Forum Recensioni
 LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg?ex=6adc9a49&is=6adb48c9&hm=889b0be762da4780fd7225ff6632c4ae457b26a5d1b1f6bfdadb3c413816c642&=&format=webp"
 
 ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
@@ -65,13 +65,13 @@ DATA_FILE = "staff_data.json"
 
 def load_data():
     if not os.path.exists(DATA_FILE):
-        return {"users": {}, "economy": {}, "duty": {}}
+        return {"users": {}, "economy": {}, "duty": {}, "rp_names": {}}
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"Errore lettura {DATA_FILE}: {e}")
-        return {"users": {}, "economy": {}, "duty": {}}
+        return {"users": {}, "economy": {}, "duty": {}, "rp_names": {}}
 
 def save_data(data):
     try:
@@ -80,7 +80,6 @@ def save_data(data):
     except Exception as e:
         print(f"Errore salvataggio {DATA_FILE}: {e}")
 
-# Helper Economia
 def get_user_eco(user_id_str):
     data = load_data()
     if "economy" not in data:
@@ -97,7 +96,6 @@ def update_user_eco(user_id_str, eco_data):
     data["economy"][user_id_str] = eco_data
     save_data(data)
 
-# Helper Servizio Staff
 def get_user_duty(user_id_str):
     data = load_data()
     if "duty" not in data:
@@ -114,33 +112,29 @@ def update_user_duty(user_id_str, duty_data):
     data["duty"][user_id_str] = duty_data
     save_data(data)
 
-nomi_rp_registrati = {}
-
 # ==========================================
-# 🎃 MODULO: PANNELLO DOCUMENTI (HALLOWEEN EDITION SPECTACULAR) 🕷️
+# 🎃 MODULO: PANNELLO DOCUMENTI (HALLOWEEN EDITION)
 # ==========================================
 
-# --- Modale per Cittadinanza ---
-class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza Spettrale"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True)
+# --- Modale Cittadinanza ---
+class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza"):
+    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
+    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
         
-        # Salva o aggiorna il Nome RP dell'utente nel database
         data = load_data()
         if "rp_names" not in data:
             data["rp_names"] = {}
-        
         data["rp_names"][user_id_str] = self.nome_cognome.value.strip()
         save_data(data)
 
         forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
         if not forum or not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ **Errore Spettrale:** Canale Forum documenti non trovato!", ephemeral=True)
+            await interaction.followup.send("❌ **Errore:** Canale Forum documenti non trovato!", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -162,28 +156,26 @@ class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza
             await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
 
 
-# --- Modale per Patenti (Controllo Categoria e Nome RP) ---
-# --- Modale per Patenti (Ottimizzata e Senza Lag) ---
+# --- Modale Patente ---
 class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True)
+    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
+    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
     categoria = discord.ui.TextInput(
-        label="🚗 Categoria Patente (Scrivi solo: A, B, C o D)", 
-        placeholder="A (Moto), B (Auto), C (Camion), D (Bus)", 
+        label="🚗 Categoria Patente (A, B, C o D)", 
+        placeholder="A, B, C oppure D", 
         max_length=1, 
         required=True
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # 1. Risposta immediata per evitare "L'applicazione non ha risposto"
         await interaction.response.defer(ephemeral=True)
 
         user_id_str = str(interaction.user.id)
         data = load_data()
         rp_names = data.get("rp_names", {})
 
-        # 2. Verifica Cittadinanza
+        # 1. Controllo Cittadinanza
         if user_id_str not in rp_names:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** 📜.",
@@ -191,7 +183,7 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        # 3. Verifica Nome RP Identico
+        # 2. Controllo Nome RP
         nome_registrato = rp_names[user_id_str].lower()
         nome_inserito = self.nome_cognome.value.strip().lower()
 
@@ -202,7 +194,7 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        # 4. Controllo Categoria Patente
+        # 3. Controllo Categoria Patente
         cat_upper = self.categoria.value.strip().upper()
         if cat_upper not in ['A', 'B', 'C', 'D']:
             await interaction.followup.send(
@@ -211,10 +203,9 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             )
             return
 
-        # 5. Invio al Forum Documenti
         forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
         if not forum or not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ **Errore Spettrale:** Canale Forum documenti non trovato!", ephemeral=True)
+            await interaction.followup.send("❌ **Errore:** Canale Forum documenti non trovato!", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -237,47 +228,46 @@ class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale")
             await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
 
 
-# --- Modale per Porto d'Armi (Controllo Nome RP e Motivazione) ---
+# --- Modale Porto d'Armi ---
 class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True)
+    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
+    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
     motivazione = discord.ui.TextInput(
         label="📋 Motivazione della Richiesta", 
         style=discord.TextStyle.paragraph, 
         placeholder="Spiega dettagliatamente il motivo della richiesta...", 
-        required=True
+        required=True,
+        max_length=500
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         user_id_str = str(interaction.user.id)
         data = load_data()
         rp_names = data.get("rp_names", {})
 
-        # 1. Verifica Cittadinanza
         if user_id_str not in rp_names:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo per la **Cittadinanza Ufficiale** 📜.",
                 ephemeral=True
             )
             return
 
-        # 2. Verifica Nome RP Identico
         nome_registrato = rp_names[user_id_str].lower()
         nome_inserito = self.nome_cognome.value.strip().lower()
 
         if nome_inserito != nome_registrato:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"🚫 **Nome RP Errato!**\nIl nome inserito (`{self.nome_cognome.value}`) non corrisponde a quello della tua Cittadinanza (`{rp_names[user_id_str]}`) 🧟‍♂️.",
                 ephemeral=True
             )
             return
 
-        await interaction.response.defer(ephemeral=True)
         forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-
         if not forum or not isinstance(forum, discord.ForumChannel):
-            await interaction.followup.send("❌ **Errore Spettrale:** Canale Forum documenti non trovato!", ephemeral=True)
+            await interaction.followup.send("❌ **Errore:** Canale Forum documenti non trovato!", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -300,35 +290,20 @@ class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"
             await interaction.followup.send(f"❌ Errore durante l'invio nel forum: `{e}`", ephemeral=True)
 
 
-# --- Vista dei Pulsanti Spettrali con Colori Diversi ---
+# --- Vista dei Pulsanti ---
 class VistaPannelloDocumenti(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(
-        label="Cittadinanza Ufficiale", 
-        style=discord.ButtonStyle.primary, 
-        emoji="🎃", 
-        custom_id="btn_cittadinanza"
-    )
+    @discord.ui.button(label="Cittadinanza Ufficiale", style=discord.ButtonStyle.primary, emoji="🎃", custom_id="btn_cittadinanza")
     async def btn_cittadinanza(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalCittadinanza())
 
-    @discord.ui.button(
-        label="Patente (A/B/C/D)", 
-        style=discord.ButtonStyle.success, 
-        emoji="🏎️", 
-        custom_id="btn_patente"
-    )
+    @discord.ui.button(label="Patente (A/B/C/D)", style=discord.ButtonStyle.success, emoji="🏎️", custom_id="btn_patente")
     async def btn_patente(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalPatente())
 
-    @discord.ui.button(
-        label="Porto d'Armi Legale", 
-        style=discord.ButtonStyle.danger, 
-        emoji="🪦", 
-        custom_id="btn_armi"
-    )
+    @discord.ui.button(label="Porto d'Armi Legale", style=discord.ButtonStyle.danger, emoji="🪦", custom_id="btn_armi")
     async def btn_armi(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalPortoDArmi())
 
@@ -371,7 +346,7 @@ async def pannello_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=VistaPannelloDocumenti())
 
 # ==========================================
-# 💳 MODULO 2: ECONOMIA & BANCA
+# 💳 MODULO: ECONOMIA & BANCA
 # ==========================================
 class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente - Puglia RP"):
     nome_cognome = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True)
@@ -549,7 +524,7 @@ async def add_money_cmd(interaction: discord.Interaction, utente: discord.Member
     await interaction.response.send_message(f"✅ Aggiunti **€ {importo:,}** in **{luogo}** per {utente.mention}.", ephemeral=True)
 
 # ==========================================
-# 🆔 MODULO 3: IDENTIFICAZIONE STAFF & REVOCA
+# 🆔 MODULO: IDENTIFICAZIONE STAFF & REVOCA
 # ==========================================
 class ModalIdentificazione(discord.ui.Modal, title="🆔 Registrazione Staffer"):
     roblox_name = discord.ui.TextInput(label="Nome Account Roblox", placeholder="Es. Player123", required=True)
@@ -657,7 +632,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
     await interaction.followup.send(f"🚫 Revocato **{tipo.name}** a {utente.mention}.", ephemeral=True)
 
 # ==========================================
-# ⏱️ MODULO 4: GESTIONE SERVIZIO STAFF
+# ⏱️ MODULO: GESTIONE SERVIZIO STAFF
 # ==========================================
 class VistaServizioStaff(discord.ui.View):
     def __init__(self):
@@ -737,7 +712,7 @@ async def leaderboard_staff_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
-# 📢 MODULO 5: ANNUNCI SESSIONI RP
+# 📢 MODULO: ANNUNCI SESSIONI RP
 # ==========================================
 @bot.tree.command(name="sessione", description="Annuncia l'apertura della sessione di Puglia RP con grafica avanzata")
 @app_commands.checks.has_permissions(administrator=True)
@@ -767,7 +742,7 @@ async def sessione_offline_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ==========================================
-# ⭐ MODULO 6: RECENSIONI STAFF (FORUM)
+# ⭐ MODULO: RECENSIONS STAFF (FORUM)
 # ==========================================
 @bot.tree.command(name="recensisci-staff", description="Invia una recensione per un membro dello Staff di Puglia RP")
 @app_commands.describe(staffer="Lo staffer da recensire", valutazione="Valutazione 1-10", motivo="Motivazione")
@@ -819,7 +794,7 @@ async def recensisci_staff_cmd(interaction: discord.Interaction, staffer: discor
         await interaction.followup.send(f"❌ Errore invio forum: `{e}`", ephemeral=True)
 
 # ==========================================
-# 🚨 MODULO 7: ARRESTI & MULTE
+# 🚨 MODULO: ARRESTI & MULTE
 # ==========================================
 @bot.tree.command(name="arresta", description="Emetti un mandato di arresto per un utente")
 @app_commands.describe(utente="L'utente da arrestare", durata="Durata della pena", motivo="Motivazione dell'arresto")
@@ -865,13 +840,63 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
     await interaction.followup.send(f"✅ Multa di **€ {importo}** emessa a {utente.mention}.", ephemeral=True)
 
 # ==========================================
+# 👥 MODULO: LISTA PLAYER (STAFF)
+# ==========================================
+@bot.tree.command(name="lista-player", description="Visualizza l'elenco e il conteggio dei player online e offline nel server")
+async def lista_player_cmd(interaction: discord.Interaction):
+    role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
+    if role_staff not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ **Comando riservato allo Staff di Puglia RP!**", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    guild = interaction.guild
+    online_members = []
+    offline_members = []
+
+    for member in guild.members:
+        if member.bot:
+            continue
+        if member.status != discord.Status.offline:
+            online_members.append(member)
+        else:
+            offline_members.append(member)
+
+    total_players = len(online_members) + len(offline_members)
+
+    online_str = ", ".join([m.mention for m in online_members[:15]]) if online_members else "Nessuno"
+    if len(online_members) > 15:
+        online_str += f" ...e altri {len(online_members) - 15}"
+
+    offline_str = ", ".join([m.mention for m in offline_members[:15]]) if offline_members else "Nessuno"
+    if len(offline_members) > 15:
+        offline_str += f" ...e altri {len(offline_members) - 15}"
+
+    embed = discord.Embed(
+        title="📊 STATO PLAYER — PUGLIA RP",
+        description=f"👥 **Totale Cittadini nel Server:** `{total_players}`",
+        color=discord.Color.blue(),
+        timestamp=discord.utils.utcnow()
+    )
+
+    embed.add_field(name=f"🟢 Online / Attivi (`{len(online_members)}`)", value=online_str, inline=False)
+    embed.add_field(name=f"⚪ Offline (`{len(offline_members)}`)", value=offline_str, inline=False)
+
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+
+    embed.set_footer(text="Puglia RP • Pannello Riservato Staff", icon_url=interaction.user.display_avatar.url)
+
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+# ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
 @bot.event
 async def on_ready():
     print(f'🤖 Bot connesso come {bot.user}')
     
-    # Registrazione Viste Persistenti per Bottoni
     bot.add_view(VistaPannelloDocumenti())
     bot.add_view(VistaContoBancario())
     bot.add_view(VistaServizioStaff())
