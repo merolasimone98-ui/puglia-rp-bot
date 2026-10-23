@@ -7,7 +7,7 @@ from threading import Thread
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 # ==========================================
 # 🌐 WEBSERVER FLASK (KEEP ALIVE PER RENDER)
