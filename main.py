@@ -1171,6 +1171,36 @@ async def servizio_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=ServiceControlView(interaction.user.id), ephemeral=True)
 
 # ==========================================
+# COMANDO /identificami (SOLO PER STAFF BASE)
+# ==========================================
+@bot.tree.command(name="identificami", description="Apri il modulo di identificazione Staff di Puglia RP")
+async def identificami_cmd(interaction: discord.Interaction):
+    # Verifica se l'utente possiede il ruolo Staff Base
+    has_staff_base = any(r.id == ROLE_STAFF_BASE_ID for r in interaction.user.roles)
+    
+    if not has_staff_base:
+        await interaction.response.send_message(
+            "❌ **Accesso Negato:** Questo comando è riservato ai membri del team **Staff Base**!",
+            ephemeral=True
+        )
+        return
+
+    # Controlla se l'utente è già stato identificato
+    data = load_data()
+    user_id_str = str(interaction.user.id)
+    
+    if user_id_str in data["users"]:
+        await interaction.response.send_message(
+            "⚠️ Risulti già **identificato** nel sistema di Puglia RP!",
+            ephemeral=True
+        )
+        return
+
+    # Apre direttamente il modulo (Modal) per l'identificazione
+    await interaction.response.send_modal(IdentificationModal())
+    
+
+# ==========================================
 # COMANDO /leaderboard-staff
 # ==========================================
 @bot.tree.command(name="leaderboard-staff", description="Visualizza la classifica settimanale delle ore Staff")
