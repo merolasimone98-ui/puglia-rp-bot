@@ -553,60 +553,78 @@ class ViewGestioneGenerica(discord.ui.View):
 
 
 # ==========================================
-# 🚨 SISTEMA REVOCA DOCUMENTI (ADMIN ONLY)
+# 🚨 SISTEMA REVOCA DOCUMENTI / STAFF (ADMIN ONLY)
 # ==========================================
-class SelectRevocaDocumento(discord.ui.Select):
-    def __init__(self, utente_target):
-        self.utente_target = utente_target
-        options = [
-            discord.SelectOption(label="Cittadinanza", description="Revoca la cittadinanza ed elimina il Nome RP", emoji="📜"),
-            discord.SelectOption(label="Patente A", description="Revoca la Patente A", emoji="🛵"),
-            discord.SelectOption(label="Patente B", description="Revoca la Patente B", emoji="🚗"),
-            discord.SelectOption(label="Patente C", description="Revoca la Patente C", emoji="🚚"),
-            discord.SelectOption(label="Patente D", description="Revoca la Patente D", emoji="🚌"),
-            discord.SelectOption(label="Porto d'Armi", description="Revoca la licenza del Porto d'Armi", emoji="🔫"),
-        ]
-        super().__init__(placeholder="Seleziona il documento da revocare...", min_values=1, max_values=1, options=options)
+@bot.tree.command(name="revoca", description="Revoca un documento o l'identificazione Staff a un utente")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    utente="L'utente a cui revocare il documento/identificazione",
+    tipo="Cosa desideri revocare"
+)
+@app_commands.choices(tipo=[
+    app_commands.Choice(name="🆔 Identificazione Staff", value="staff"),
+    app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
+    app_commands.Choice(name="🚗 Patente A", value="patente_a"),
+    app_commands.Choice(name="🚗 Patente B", value="patente_b"),
+    app_commands.Choice(name="🚗 Patente C", value="patente_c"),
+    app_commands.Choice(name="🚗 Patente D", value="patente_d"),
+    app_commands.Choice(name="🔫 Porto d'Armi", value="armi")
+])
+async def revoca_slash(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
+    # Previene il timeout di Discord dicendo subito che il bot sta elaborando
+    await interaction.response.defer(ephemeral=True)
 
-    async def callback(self, interaction: discord.Interaction):
-        scelta = self.values[0]
-        ruolo_da_rimuovere = None
-
-        if scelta == "Cittadinanza":
-            ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-            if self.utente_target.id in nomi_rp_registrati:
-                del nomi_rp_registrati[self.utente_target.id]
-        elif scelta.startswith("Patente"):
-            lettera = scelta.split()[1]
-            id_r = RUOLI_PATENTI.get(lettera)
-            ruolo_da_rimuovere = interaction.guild.get_role(id_r)
-        elif scelta == "Porto d'Armi":
-            ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-
-        if ruolo_da_rimuovere and ruolo_da_rimuovere in self.utente_target.roles:
+    # --- REVOCA IDENTIFICAZIONE STAFF ---
+    if tipo.value == "staff":
+        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
+        if role_staff and role_staff in utente.roles:
             try:
-                await self.utente_target.remove_roles(ruolo_da_rimuovere)
+                await utente.remove_roles(role_staff)
             except Exception:
                 pass
 
-        # Risposta privata per l'admin che ha eseguito la revoca
-        await interaction.response.send_message(
-            f"🚫 **REVOCA COMPLETATA!**\nÈ stata revocata la **{scelta}** all'utente {self.utente_target.mention}. Ora dovrà richiedere nuovamente il documento.",
-            ephemeral=True
-        )
+        data = load_data()
+        user_id_str = str(utente.id)
+        if user_id_str in data.get("users", {}):
+            del data["users"][user_id_str]
+            save_data(data)
 
+        embed = discord.Embed(
+            title="⚠️ IDENTIFICAZIONE STAFF REVOCATA",
+            description=f"L'identificazione Staff di {utente.mention} è stata revocata con successo.",
+            color=discord.Color.red(),
+            timestamp=discord.utils.utcnow()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        return
+
+    # --- REVOCA ALTRI DOCUMENTI ---
+    ruolo_da_rimuovere = None
+    nome_doc = tipo.name
+
+    if tipo.value == "cittadinanza":
+        ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+        if utente.id in nomi_rp_registrati:
+            del nomi_rp_registrati[utente.id]
+    elif tipo.value.startswith("patente_"):
+        lettera = tipo.value.split("_")[1].upper()
+        ruolo_da_rimuovere = interaction.guild.get_role(RUOLI_PATENTI.get(lettera))
+    elif tipo.value == "armi":
+        ruolo_da_rimuovere = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+
+    if ruolo_da_rimuovere and ruolo_da_rimuovere in utente.roles:
         try:
-            await self.utente_target.send(
-                f"⚠️ **ATTENZIONE!** La tua **{scelta}** su **Puglia RP** è stata **REVOCATA** dagli Amministratori.\nDovrai compilare nuovamente il modulo per ottenerla."
-            )
+            await utente.remove_roles(ruolo_da_rimuovere)
         except Exception:
             pass
 
-
-class ViewRevocaDocumento(discord.ui.View):
-    def __init__(self, utente_target):
-        super().__init__(timeout=60)
-        self.add_item(SelectRevocaDocumento(utente_target))
+    embed = discord.Embed(
+        title="🚫 REVOCA DOCUMENTO",
+        description=f"È stata revocata la voce: **{nome_doc}** a {utente.mention}.",
+        color=discord.Color.orange(),
+        timestamp=discord.utils.utcnow()
+    )
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 
