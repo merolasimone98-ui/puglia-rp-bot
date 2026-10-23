@@ -814,6 +814,454 @@ async def sessione_offline(interaction: discord.Interaction):
     embed.set_footer(text="Puglia RP • Restate sintonizzati per la prossima apertura!")
 
     await interaction.response.send_message(embed=embed)
+
+import json
+import asyncio
+import urllib.request
+import urllib.parse
+from datetime import datetime, time, timezone, timedelta
+import discord
+from discord import app_commands, ui
+from discord.ext import tasks
+
+# ==========================================
+# CONFIGURAZIONE ID PUGLIA RP
+# ==========================================
+ROLE_STAFF_BASE_ID = 1524685130399219842
+ROLE_STAFF_IDENTIFICATO_ID = 1562507751975035065
+
+LOG_CHANNEL_ID = 1563153373619027989
+LEADERBOARD_CHANNEL_ID = 1563153429512065115
+ALLOWED_SERVIZIO_CHANNEL_ID = 1563153684542656613
+
+DATA_FILE = "staff_data.json"
+
+# ==========================================
+# GESTIONE DATABASE E API ROBLOX
+# ==========================================
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {"users": {}, "active_sessions": {}, "weekly_minutes": {}}
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if "users" not in data: data["users"] = {}
+            if "active_sessions" not in data: data["active_sessions"] = {}
+            if "weekly_minutes" not in data: data["weekly_minutes"] = {}
+            return data
+    except Exception:
+        return {"users": {}, "active_sessions": {}, "weekly_minutes": {}}
+
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+def get_roblox_avatar(roblox_username):
+    try:
+        req_user_data = json.dumps({"usernames": [roblox_username], "excludeBannedUsers": False}).encode("utf-8")
+        req_user = urllib.request.Request(
+            "https://users.roblox.com/v1/usernames/users",
+            data=req_user_data,
+            headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req_user, timeout=5) as response:
+            res_user = json.loads(response.read().decode("utf-8"))
+            if not res_user.get("data") or len(res_user["data"]) == 0:
+                return None
+            user_id = res_user["data"][0]["id"]
+
+        thumb_url = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={user_id}&size=150x150&format=Png&isCircular=false"
+        req_thumb = urllib.request.Request(thumb_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req_thumb, timeout=5) as response:
+            res_thumb = json.loads(response.read().decode("utf-8"))
+            if res_thumb.get("data") and len(res_thumb["data"]) > 0:
+                return res_thumb["data"][0]["imageUrl"]
+    except Exception as e:
+        print(f"[Roblox API] Errore nel recupero avatar per {roblox_username}: {e}")
+    return None
+
+def format_minutes(total_minutes):
+    hours = int(total_minutes // 60)
+    minutes = int(total_minutes % 60)
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+# ==========================================
+# MODALE E BOTTONI PER IDENTIFICAZIONE
+# ==========================================
+class IdentificationModal(ui.Modal, title="Identificazione Staff Puglia RP"):
+    nome_discord = ui.TextInput(label="Nome Discord", placeholder="Es. simone_rp", required=True)
+    nome_roblox = ui.TextInput(label="Nome Roblox", placeholder="Es. Player123", required=True)
+    nome_rp = ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Marco Rossi", required=True)
+    grado_staff = ui.TextInput(label="Grado Staff", placeholder="Es. Mod / Admin / Helper", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id_str = str(interaction.user.id)
+        data = load_data()
+
+        data["users"][user_id_str] = {
+            "discord_name": self.nome_discord.value,
+            "roblox_name": self.nome_roblox.value,
+            "rp_name": self.nome_rp.value,
+            "grado": self.grado_staff.value,
+            "registered_at": datetime.utcnow().isoformat()
+        }
+        save_data(data)
+
+        guild = bot.get_guild(interaction.guild_id) if interaction.guild else None
+        member = None
+        if guild:
+            member = guild.get_member(interaction.user.id)
+            if member:
+                role_identificato = guild.get_role(ROLE_STAFF_IDENTIFICATO_ID)
+                if role_identificato:
+                    try:
+                        await member.add_roles(role_identificato)
+                    except Exception as e:
+                        print(f"Errore nell'assegnare il ruolo identificato: {e}")
+
+        await interaction.response.send_message(
+            "✅ **Identificazione completata con successo!**\n"
+            "Ora possiedi il ruolo **Staff Identificato** e puoi utilizzare il comando `/servizio` nel canale dedicato.",
+            ephemeral=True
+        )
+
+        if guild:
+            log_channel = guild.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                embed_log = discord.Embed(
+                    title="📝 NUOVA IDENTIFICAZIONE STAFF",
+                    color=discord.Color.blue(),
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed_log.add_field(name="👤 Utente", value=interaction.user.mention, inline=True)
+                embed_log.add_field(name="🎮 Roblox", value=self.nome_roblox.value, inline=True)
+                embed_log.add_field(name="🪪 Nome RP", value=self.nome_rp.value, inline=True)
+                embed_log.add_field(name="⭐ Grado", value=self.grado_staff.value, inline=True)
+                embed_log.set_footer(text="Puglia RP • Sistema Identificazione")
+                await log_channel.send(embed=embed_log)
+
+class DMIdentificationView(ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @ui.button(label="🆔 Effettua Identificazione", style=discord.ButtonStyle.primary, custom_id="btn_identifica_dm")
+    async def identifica_button(self, interaction: discord.Interaction, button: ui.Button):
+        data = load_data()
+        user_id_str = str(interaction.user.id)
+        if user_id_str in data["users"]:
+            await interaction.response.send_message("❌ Risulti già identificato nel sistema di Puglia RP!", ephemeral=True)
+            return
+        await interaction.response.send_modal(IdentificationModal())
+
+# ==========================================
+# EVENTO ASSEGNAZIONE RUOLO STAFF BASE
+# ==========================================
+@bot.event
+async def on_member_update(before: discord.Member, after: discord.Member):
+    had_role = any(r.id == ROLE_STAFF_BASE_ID for r in before.roles)
+    has_role = any(r.id == ROLE_STAFF_BASE_ID for r in after.roles)
+
+    if not had_role and has_role:
+        try:
+            embed_welcome = discord.Embed(
+                title="🌟 BENVENUTO NEL TEAM STAFF DI PUGLIA RP!",
+                description=(
+                    f"Ciao **{after.display_name}**, benvenuto nello Staff di **Puglia RP**!\n\n"
+                    "⚠️ **ATTENZIONE:** Per poter iniziare a svolgere il servizio Staff è **obbligatorio** effettuare l'identificazione.\n"
+                    "Clicca sul pulsante qui sotto per inserire i tuoi dati."
+                ),
+                color=discord.Color.gold()
+            )
+            embed_welcome.set_footer(text="Puglia RP • Servizio Gestione Staff")
+            await after.send(embed=embed_welcome, view=DMIdentificationView())
+        except discord.Forbidden:
+            print(f"Impossibile inviare DM a {after.display_name}: DM chiusi.")
+
+# ==========================================
+# PANNELLO SERVIZIO STAFF & BOTTONI
+# ==========================================
+class ServiceControlView(ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=None)
+        self.user_id = str(user_id)
+
+    async def check_user(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("❌ Questo pannello di servizio appartiene a un altro staffer!", ephemeral=True)
+            return False
+        return True
+
+    @ui.button(label="Apri Servizio", style=discord.ButtonStyle.success, emoji="🟢", custom_id="btn_apri_servizio")
+    async def apri_servizio(self, interaction: discord.Interaction, button: ui.Button):
+        if not await self.check_user(interaction): return
+        data = load_data()
+        user_str = self.user_id
+
+        if user_str in data["active_sessions"] and data["active_sessions"][user_str]["status"] == "active":
+            await interaction.response.send_message("⚠️ Il tuo servizio staff è già **ATTIVO**!", ephemeral=True)
+            return
+
+        now_iso = datetime.utcnow().isoformat()
+        if user_str in data["active_sessions"] and data["active_sessions"][user_str]["status"] == "paused":
+            data["active_sessions"][user_str]["status"] = "active"
+            data["active_sessions"][user_str]["last_start"] = now_iso
+            msg_action = "▶️ Servizio Staff **RIPRESO** con successo!"
+            log_title = "▶️ SERVIZIO STAFF RIPRESO"
+            log_color = discord.Color.green()
+        else:
+            data["active_sessions"][user_str] = {
+                "status": "active",
+                "start_time": now_iso,
+                "last_start": now_iso,
+                "accumulated_seconds": 0
+            }
+            msg_action = "🟢 Servizio Staff **APERTO** con successo!"
+            log_title = "🟢 SERVIZIO STAFF APERTO"
+            log_color = discord.Color.green()
+
+        save_data(data)
+        await interaction.response.send_message(msg_action, ephemeral=True)
+
+        log_chan = interaction.guild.get_channel(LOG_CHANNEL_ID) if interaction.guild else None
+        if log_chan:
+            user_info = data["users"].get(user_str, {})
+            embed_log = discord.Embed(title=log_title, color=log_color, timestamp=datetime.now(timezone.utc))
+            embed_log.add_field(name="👤 Staffer", value=interaction.user.mention, inline=True)
+            embed_log.add_field(name="🎮 Roblox", value=user_info.get("roblox_name", "N/D"), inline=True)
+            embed_log.add_field(name="⭐ Grado", value=user_info.get("grado", "N/D"), inline=True)
+            embed_log.set_footer(text="Puglia RP • Log Servizio Staff")
+            await log_chan.send(embed=embed_log)
+
+    @ui.button(label="Metti in Pausa", style=discord.ButtonStyle.secondary, emoji="⏸️", custom_id="btn_pausa_servizio")
+    async def pausa_servizio(self, interaction: discord.Interaction, button: ui.Button):
+        if not await self.check_user(interaction): return
+        data = load_data()
+        user_str = self.user_id
+
+        if user_str not in data["active_sessions"] or data["active_sessions"][user_str]["status"] == "offline":
+            await interaction.response.send_message("❌ Non hai un servizio attivo da mettere in pausa!", ephemeral=True)
+            return
+
+        if data["active_sessions"][user_str]["status"] == "paused":
+            await interaction.response.send_message("⚠️ Il tuo servizio è già in pausa!", ephemeral=True)
+            return
+
+        session = data["active_sessions"][user_str]
+        last_start = datetime.fromisoformat(session["last_start"])
+        elapsed = (datetime.utcnow() - last_start).total_seconds()
+        session["accumulated_seconds"] += elapsed
+        session["status"] = "paused"
+        save_data(data)
+
+        await interaction.response.send_message("⏸️ Servizio Staff **MESSO IN PAUSA**.", ephemeral=True)
+
+        log_chan = interaction.guild.get_channel(LOG_CHANNEL_ID) if interaction.guild else None
+        if log_chan:
+            user_info = data["users"].get(user_str, {})
+            embed_log = discord.Embed(title="⏸️ SERVIZIO STAFF IN PAUSA", color=discord.Color.gold(), timestamp=datetime.now(timezone.utc))
+            embed_log.add_field(name="👤 Staffer", value=interaction.user.mention, inline=True)
+            embed_log.add_field(name="⏱️ Tempo Parziale", value=format_minutes(session["accumulated_seconds"] / 60), inline=True)
+            embed_log.set_footer(text="Puglia RP • Log Servizio Staff")
+            await log_chan.send(embed=embed_log)
+
+    @ui.button(label="Chiudi Servizio", style=discord.ButtonStyle.danger, emoji="🔴", custom_id="btn_chiudi_servizio")
+    async def chiudi_servizio(self, interaction: discord.Interaction, button: ui.Button):
+        if not await self.check_user(interaction): return
+        data = load_data()
+        user_str = self.user_id
+
+        if user_str not in data["active_sessions"] or data["active_sessions"][user_str]["status"] == "offline":
+            await interaction.response.send_message("❌ Non hai un servizio attivo da chiudere!", ephemeral=True)
+            return
+
+        session = data["active_sessions"][user_str]
+        total_seconds = session.get("accumulated_seconds", 0)
+
+        if session["status"] == "active":
+            last_start = datetime.fromisoformat(session["last_start"])
+            total_seconds += (datetime.utcnow() - last_start).total_seconds()
+
+        session_minutes = total_seconds / 60.0
+        data["weekly_minutes"][user_str] = data["weekly_minutes"].get(user_str, 0) + session_minutes
+        del data["active_sessions"][user_str]
+        save_data(data)
+
+        formatted_time = format_minutes(session_minutes)
+        formatted_total = format_minutes(data["weekly_minutes"][user_str])
+
+        await interaction.response.send_message(
+            f"🔴 Servizio Staff **CHIUSO**.\n"
+            f"⏱️ Tempo sessione: **{formatted_time}**\n"
+            f"📊 Totale settimana: **{formatted_total}**",
+            ephemeral=True
+        )
+
+        log_chan = interaction.guild.get_channel(LOG_CHANNEL_ID) if interaction.guild else None
+        if log_chan:
+            user_info = data["users"].get(user_str, {})
+            embed_log = discord.Embed(title="🔴 SERVIZIO STAFF CHIUSO", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+            embed_log.add_field(name="👤 Staffer", value=interaction.user.mention, inline=True)
+            embed_log.add_field(name="🎮 Roblox", value=user_info.get("roblox_name", "N/D"), inline=True)
+            embed_log.add_field(name="⏱️ Sessione", value=formatted_time, inline=True)
+            embed_log.add_field(name="📊 Totale Settimanale", value=formatted_total, inline=True)
+            embed_log.set_footer(text="Puglia RP • Log Servizio Staff")
+            await log_chan.send(embed=embed_log)
+
+# ==========================================
+# COMANDO /servizio
+# ==========================================
+@bot.tree.command(name="servizio", description="Apri il tuo pannello personale di gestione Servizio Staff")
+async def servizio_cmd(interaction: discord.Interaction):
+    if interaction.channel_id != ALLOWED_SERVIZIO_CHANNEL_ID:
+        await interaction.response.send_message(
+            f"❌ Questo comando può essere eseguito solo nel canale dedicato: <#{ALLOWED_SERVIZIO_CHANNEL_ID}>!",
+            ephemeral=True
+        )
+        return
+
+    has_identificativo = any(r.id == ROLE_STAFF_IDENTIFICATO_ID for r in interaction.user.roles)
+    if not has_identificativo:
+        await interaction.response.send_message(
+            "❌ Non hai il ruolo **Staff Identificato**! Controlla i tuoi DM per completare l'identificazione.",
+            ephemeral=True
+        )
+        return
+
+    data = load_data()
+    user_str = str(interaction.user.id)
+    user_info = data["users"].get(user_str, {})
+
+    roblox_name = user_info.get("roblox_name", "Non Registrato")
+    rp_name = user_info.get("rp_name", "Non Registrato")
+    grado = user_info.get("grado", "Staff")
+
+    current_status = "⚪ Offline"
+    if user_str in data["active_sessions"]:
+        st = data["active_sessions"][user_str]["status"]
+        if st == "active": current_status = "🟢 In Servizio"
+        elif st == "paused": current_status = "⏸️ In Pausa"
+
+    total_min = data["weekly_minutes"].get(user_str, 0)
+    formatted_total = format_minutes(total_min)
+
+    embed = discord.Embed(
+        title="🛡️ PANNELLO SERVIZIO STAFF",
+        description=f"Benvenuto nel tuo pannello personale, **{interaction.user.mention}**.\nUsa i pulsanti sottostanti per gestire il tuo turno.",
+        color=discord.Color.blue()
+    )
+    embed.add_field(name="🪪 Nome RP", value=rp_name, inline=True)
+    embed.add_field(name="🎮 Roblox", value=roblox_name, inline=True)
+    embed.add_field(name="⭐ Grado", value=grado, inline=True)
+    embed.add_field(name="📢 Stato Attuale", value=f"**{current_status}**", inline=True)
+    embed.add_field(name="⏱️ Ore Settimanali", value=f"**{formatted_total}**", inline=True)
+
+    avatar_url = get_roblox_avatar(roblox_name) if roblox_name != "Non Registrato" else None
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
+    else:
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+
+    embed.set_footer(text="Puglia RP • Gestione Servizio Staff")
+    await interaction.response.send_message(embed=embed, view=ServiceControlView(interaction.user.id), ephemeral=True)
+
+# ==========================================
+# COMANDO /leaderboard-staff
+# ==========================================
+@bot.tree.command(name="leaderboard-staff", description="Visualizza la classifica settimanale delle ore Staff")
+async def leaderboard_cmd(interaction: discord.Interaction):
+    data = load_data()
+    weekly = data.get("weekly_minutes", {})
+
+    if not weekly:
+        await interaction.response.send_message("📊 Nessun dato di servizio accumulato per questa settimana.", ephemeral=True)
+        return
+
+    sorted_staff = sorted(weekly.items(), key=lambda x: x[1], reverse=True)
+
+    embed = discord.Embed(
+        title="🏆 LEADERBOARD SETTIMANALE STAFF",
+        description="Ecco la classifica delle ore di servizio accumulate dal team staff questa settimana:",
+        color=discord.Color.gold(),
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    medals = ["🥇", "🥈", "🥉"]
+    for idx, (u_id, minutes) in enumerate(sorted_staff[:10], start=1):
+        badge = medals[idx-1] if idx <= 3 else f"**#{idx}**"
+        user_info = data["users"].get(u_id, {})
+        r_name = user_info.get("roblox_name", "Utente")
+        rp_name = user_info.get("rp_name", "")
+        grado = user_info.get("grado", "Staff")
+
+        display_text = f"<@{u_id}> ({r_name})" if r_name != "Utente" else f"<@{u_id}>"
+        embed.add_field(
+            name=f"{badge} {display_text}",
+            value=f"⏱️ Tempo: **{format_minutes(minutes)}** | ⭐ Grado: `{grado}`",
+            inline=False
+        )
+
+    embed.set_footer(text="Puglia RP • Reset automatico ogni Lunedì a mezzanotte")
+    await interaction.response.send_message(embed=embed)
+
+# ==========================================
+# TASK AUTOMATICO: RESET & LEADERBOARD LUNEDÌ
+# ==========================================
+@tasks.loop(time=time(0, 0, tzinfo=timezone.utc))
+async def monday_reset_task():
+    # Verifica che sia Lunedì (weekday 0)
+    if datetime.now(timezone.utc).weekday() == 0:
+        print("[RESET SETTIMANALE] Avvio reset ore staff del Lunedì...")
+        data = load_data()
+        weekly = data.get("weekly_minutes", {})
+
+        guild = None
+        for g in bot.guilds:
+            lb_chan = g.get_channel(LEADERBOARD_CHANNEL_ID)
+            if lb_chan:
+                guild = g
+                break
+
+        if guild:
+            lb_chan = guild.get_channel(LEADERBOARD_CHANNEL_ID)
+            if lb_chan and weekly:
+                sorted_staff = sorted(weekly.items(), key=lambda x: x[1], reverse=True)
+
+                embed = discord.Embed(
+                    title="📊 CLASSIFICA FINALE SETTIMANALE STAFF",
+                    description="La settimana è giunta al termine! Ecco i risultati e il totale delle ore svolte dal team:",
+                    color=discord.Color.purple(),
+                    timestamp=datetime.now(timezone.utc)
+                )
+
+                medals = ["🥇", "🥈", "🥉"]
+                for idx, (u_id, minutes) in enumerate(sorted_staff, start=1):
+                    badge = medals[idx-1] if idx <= 3 else f"#{idx}"
+                    user_info = data["users"].get(u_id, {})
+                    r_name = user_info.get("roblox_name", "N/D")
+                    grado = user_info.get("grado", "Staff")
+                    embed.add_field(
+                        name=f"{badge} <@{u_id}> - Roblox: {r_name}",
+                        value=f"⏱️ **{format_minutes(minutes)}** | ⭐ `{grado}`",
+                        inline=False
+                    )
+
+                embed.set_footer(text="Puglia RP • Le ore sono state azzerate per la nuova settimana!")
+                await lb_chan.send(content="🔔 **RESET SETTIMANALE EFFETTUATO!** Ecco la classifica finale:", embed=embed)
+
+        # Azzera la leaderboard settimanale
+        data["weekly_minutes"] = {}
+        save_data(data)
+        print("[RESET SETTIMANALE] Ore staff azzerate con successo!")
+
+@monday_reset_task.before_loop
+async def before_monday_reset():
+    await bot.wait_until_ready()
+
+# Avvia il loop del reset settimanale
+monday_reset_task.start()
+
     
 import os
 
