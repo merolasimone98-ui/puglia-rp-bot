@@ -544,9 +544,10 @@ class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
         user_id_str = str(interaction.user.id)
         data = load_data()
         cittadinanze = data.get("cittadinanze", {})
+        rp_names = data.get("rp_names", {})
 
-        # Controllo obbligatorio: deve avere la Cittadinanza con link al canale corretto
-        if user_id_str not in cittadinanze:
+        # 1. Controlliamo se l'utente ha la Cittadinanza registrata
+        if user_id_str not in cittadinanze and user_id_str not in rp_names:
             await interaction.followup.send(
                 "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo nel canale apposito "
                 f"<#1562891119824601258> per ottenere la **Cittadinanza Ufficiale** prima di poter aprire un conto bancario 📜.",
@@ -554,28 +555,37 @@ class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
             )
             return
 
-        dati_reg = cittadinanze[user_id_str]
-        
-        # Controllo corrispondenza Nome RP
-        if self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower():
+        # 2. Recuperiamo il Nome RP registrato ufficialmente
+        if user_id_str in cittadinanze:
+            nome_rp_registrato = cittadinanze[user_id_str].get("nome_rp", "").strip()
+        else:
+            nome_rp_registrato = rp_names.get(user_id_str, "").strip()
+
+        # 3. Controllo Corrispondenza Nome RP
+        nome_inserito = self.nome_cognome.value.strip()
+        if nome_inserito.lower() != nome_rp_registrato.lower():
             await interaction.followup.send(
-                f"❌ **Nome RP Errato!** Deve corrispondere alla tua Cittadinanza (`{dati_reg['nome_rp']}`).",
+                "❌ **Nome RP Errato o non corrispondente!**\n"
+                f"Il nome inserito (`{nome_inserito}`) non corrisponde a quello della tua Cittadinanza Ufficiale (`{nome_rp_registrato}`).\n"
+                "Inserisci il Nome e Cognome RP esatto!",
                 ephemeral=True
             )
             return
 
+        # 4. Controllo se possiede già il conto bancario
         eco = get_user_eco(user_id_str)
         if eco.get("has_account"):
             await interaction.followup.send("❌ Possiedi già un conto corrente attivo!", ephemeral=True)
             return
 
+        # 5. Attivazione Conto + Accredito Bonus
         eco["bank"] += 1000
         eco["has_account"] = True
         update_user_eco(user_id_str, eco)
 
         embed = discord.Embed(
             title="🏦 CONTO BANCARIO APERTO CON SUCCESSO! 💰",
-            description=f"Congratulazioni **{self.nome_cognome.value}** ({self.eta_rp.value} anni)!\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati sul tuo nuovo conto.",
+            description=f"Congratulazioni **{nome_rp_registrato}** ({self.eta_rp.value} anni)!\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati sul tuo nuovo conto.",
             color=discord.Color.from_rgb(46, 204, 113),
             timestamp=discord.utils.utcnow()
         )
