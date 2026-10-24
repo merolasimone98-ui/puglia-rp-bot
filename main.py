@@ -36,18 +36,19 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
+# ==========================================
 # 📌 CONFIGURAZIONE ID RUOLI E CANALI
-ROLE_STAFF_BASE_ID = 1562507751975035065
+# ==========================================
 ID_RUOLO_CITTADINO = 1562894350135066674
 ID_RUOLO_PORTO_DARMI = 1562894902428442695
 ID_RUOLO_FDO = 1563276863462178956
 ID_RUOLO_STAFF = 1562507751975035065
 
 RUOLI_PATENTI = {
-    'A': 1562894624597479555,
-    'B': 1562894703081431090,
-    'C': 1562894760878800897,
-    'D': 1562894822983860364
+    'patente_a': 1562894624597479555,
+    'patente_b': 1562894703081431090,
+    'patente_c': 1562894760878800897,
+    'patente_d': 1562894822983860364
 }
 
 ID_FORUM_DOCUMENTI = 1562891782415450183
@@ -1058,9 +1059,9 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, view=VistaContoBancario())
 
 # ==========================================
-# ❌ COMANDO /REVOCA (RIFATTO E COMPLETO)
+# ❌ COMANDO /REVOCA CON ELIMINAZIONE FORUM DOCUMENTI
 # ==========================================
-@bot.tree.command(name="revoca", description="Revoca licenze, patenti, cittadinanza o status ad un utente")
+@bot.tree.command(name="revoca", description="Revoca licenze, patenti, cittadinanza o status (rimuove ruoli e post dai forum)")
 @app_commands.describe(utente="L'utente a cui revocare il documento/licenza", tipo="Cosa vuoi revocare?")
 @app_commands.choices(tipo=[
     app_commands.Choice(name="🚗 Patente A (Moto)", value="patente_a"),
@@ -1076,7 +1077,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
     await interaction.response.defer(ephemeral=True)
 
     try:
-        # 1. Controllo Permessi (Staff vs FDO)
+        # 1. Permessi (Staff vs FDO)
         is_staff = any(role.id == ID_RUOLO_STAFF for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
         is_fdo = any(role.id == ID_RUOLO_FDO for role in interaction.user.roles)
         
@@ -1101,15 +1102,15 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
 
         messaggio = ""
         modificato = False
+        forum_id_da_pulire = None
 
-        # --- REVOCA PATENTI (A, B, C, D) ---
+        # --- REVOCA PATENTI ---
         if tipo.value in RUOLI_PATENTI:
             role_id = RUOLI_PATENTI[tipo.value]
             user_licenze[tipo.value] = False
             modificato = True
             messaggio = f"✅ **{tipo.name}** revocata con successo a {utente.mention}!"
 
-            # Rimuove il ruolo Discord della patente se presente
             ruolo = interaction.guild.get_role(role_id)
             if ruolo and ruolo in utente.roles:
                 try:
@@ -1135,6 +1136,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
             user_licenze["cittadinanza"] = False
             modificato = True
             messaggio = f"✅ **Cittadinanza** revocata con successo a {utente.mention}!"
+            forum_id_da_pulire = ID_FORUM_DOCUMENTI
 
             ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
             if ruolo and ruolo in utente.roles:
@@ -1150,16 +1152,17 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
             eco_data["bank"] = 0
             modificato = True
             messaggio = f"✅ Conto bancario e documenti revocati a {utente.mention}!"
+            forum_id_da_pulire = ID_FORUM_DOCUMENTI
 
-        # --- REVOCA IDENTIFICAZIONE STAFF & FORUM ---
+        # --- REVOCA IDENTIFICAZIONE STAFF ---
         elif tipo.value == "staff":
             staff_data = data.get("identificazioni_staff", {})
             info_staff = staff_data.pop(user_id_str, None)
             data["identificazioni_staff"] = staff_data
             modificato = True
             messaggio = f"✅ L'identificazione Staff di {utente.mention} è stata revocata con successo!"
+            forum_id_da_pulire = ID_FORUM_STAFF_IDENTIFICATI
 
-            # Rimuove ruolo Staff
             ruolo = interaction.guild.get_role(ID_RUOLO_STAFF)
             if ruolo and ruolo in utente.roles:
                 try:
@@ -1167,19 +1170,39 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                 except Exception:
                     pass
 
-            # Cancella il post dal Forum Staff
-            if info_staff:
-                try:
-                    forum_channel = interaction.guild.get_channel(ID_FORUM_STAFF_IDENTIFICATI)
-                    if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-                        roblox_user = info_staff.get("roblox_user", "")
-                        for thread in forum_channel.threads:
-                            if roblox_user and roblox_user.lower() in thread.name.lower():
+        # 🗑️ CANCELLAZIONE AUTOMATICA POST NEL FORUM CORRISPONDENTE
+        if forum_id_da_pulire:
+            try:
+                forum_channel = interaction.guild.get_channel(forum_id_da_pulire)
+                if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+                    # Cerca sia per nome utente, per ID Discord o per display name
+                    search_keys = [utente.name.lower(), utente.display_name.lower(), str(utente.id)]
+                    
+                    # Se era uno staffer, aggiunge anche l'username Roblox tra le chiavi
+                    if tipo.value == "staff" and info_staff:
+                        roblox_u = info_staff.get("roblox_user", "")
+                        if roblox_u:
+                            search_keys.append(roblox_u.lower())
+
+                    post_eliminato = False
+                    for thread in forum_channel.threads:
+                        thread_name_lower = thread.name.lower()
+                        if any(key in thread_name_lower for key in search_keys if key):
+                            await thread.delete()
+                            post_eliminato = True
+                            messaggio += "\n🗑️ *Post nel forum dei documenti eliminato automaticamente.*"
+                            break
+
+                    # Se non lo trova tra i thread attivi, controlla anche quelli archiviati
+                    if not post_eliminato:
+                        async for thread in forum_channel.archived_threads():
+                            thread_name_lower = thread.name.lower()
+                            if any(key in thread_name_lower for key in search_keys if key):
                                 await thread.delete()
-                                messaggio += "\n🗑️ *Post nel forum Staff eliminato automaticamente.*"
+                                messaggio += "\n🗑️ *Post nel forum dei documenti eliminato automaticamente.*"
                                 break
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
         if modificato:
             save_data(data)
