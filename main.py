@@ -61,8 +61,9 @@ ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
 ID_CANALE_REGISTRO_MULTE = 1563215066411696299
 ID_CANALE_CONTO_BANCARIO = 1563216017851949227
 ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
-ID_CANALE_LOG_DOCUMENTI = 1562891209675116544 
 ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
+ID_CANALE_LOG_DOCUMENTI = 1562891209675116544  # Canale Accettazione / Log Documenti
+ID_FORUM_DOCUMENTI = 1562891782415450183       # Forum Schede Documenti
 
 # ==========================================
 # 💾 GESTIONE PERSISTENZA DATI (JSON)
@@ -209,261 +210,139 @@ class VistaApprovazioneDocumenti(discord.ui.View):
         except Exception as e:
             await interaction.followup.send(f"❌ Errore durante il rifiuto: `{e}`", ephemeral=True)
 
-# --- Modale Cittadinanza ---
-class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
+# ==========================================
+# 📝 MODALE RICHIESTA CITTADINANZA
+# ==========================================
+class ModalCittadinanza(discord.ui.Modal, title="🇮🇹 Richiesta Cittadinanza Puglia RP"):
+    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=3)
 
     async def on_submit(self, interaction: discord.Interaction):
-        user_id_str = str(interaction.user.id)
-        data = load_data()
-        cittadinanze = data.get("cittadinanze", {})
-        ruolo_cittadino = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-
-        # 🚫 Controllo se possiede già la Cittadinanza
-        if (ruolo_cittadino and ruolo_cittadino in interaction.user.roles) or user_id_str in cittadinanze:
-            await interaction.response.send_message(
-                "⚠️ **Possiedi già la Cittadinanza Ufficiale!** Non puoi richiederne un'altra.",
-                ephemeral=True
-            )
-            return
-
         await interaction.response.defer(ephemeral=True)
 
-        # Salva TUTTI i dati della Cittadinanza nel database
-        if "cittadinanze" not in data:
-            data["cittadinanze"] = {}
-            
-        data["cittadinanze"][user_id_str] = {
-            "nome_rp": self.nome_cognome.value.strip(),
-            "roblox_user": self.roblox_user.value.strip(),
-            "eta_rp": self.eta_rp.value.strip()
-        }
-        
-        if "rp_names" not in data:
-            data["rp_names"] = {}
-        data["rp_names"][user_id_str] = self.nome_cognome.value.strip()
-        
-        save_data(data)
-
-        canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
-        if not canale_staff:
-            await interaction.followup.send("❌ **Errore:** Canale staff per l'approvazione non trovato!", ephemeral=True)
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if not canale_log:
+            await interaction.followup.send(f"❌ Errore: Canale log documenti (`{ID_CANALE_LOG_DOCUMENTI}`) non trovato nel server!", ephemeral=True)
             return
 
-        embed = discord.Embed(
+        embed_richiesta = discord.Embed(
             title="📥 NUOVA RICHIESTA: CITTADINANZA",
+            description=(
+                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
+                f"🎂 **Età RP:** `{self.eta_rp.value.strip()} anni`"
+            ),
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
-        embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
-        embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
-        embed.add_field(name="🎂 Età RP", value=f"`{self.eta_rp.value} anni`", inline=True)
+        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione dallo Staff")
 
-        view_staff = VistaApprovazioneStaff(
-            tipo_documento="Cittadinanza",
-            nome_rp=self.nome_cognome.value,
-            roblox_user=self.roblox_user.value,
-            eta_rp=self.eta_rp.value,
-            target_user_id=interaction.user.id
+        vista = VistaApprovazioneDocumenti(
+            user_id=str(interaction.user.id),
+            nome_rp=self.nome_rp.value.strip(),
+            roblox_user=self.roblox_user.value.strip(),
+            tipo_doc="Cittadinanza"
         )
 
-        await canale_staff.send(embed=embed, view=view_staff)
-        await interaction.followup.send("🎃 **Richiesta di Cittadinanza inviata allo Staff per la revisione!** 👻", ephemeral=True)
+        try:
+            await canale_log.send(embed=embed_richiesta, view=vista)
+            await interaction.followup.send("✅ **Modulo inviato con successo!** La tua richiesta è in fase di valutazione.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
 
 
 # --- Modale Patente (Ordinata e Senza Roblox) ---
-class ModalPatente(discord.ui.Modal, title="🏎️ Licenza di Guida Spettrale"):
-    nome_cognome = discord.ui.TextInput(
-        label="📜 Nome e Cognome RP", 
-        placeholder="Es. Mario Rossi", 
-        required=True, 
-        max_length=40
-    )
-    categoria = discord.ui.TextInput(
-        label="🚗 Categoria Patente (A, B, C o D)", 
-        placeholder="A, B, C oppure D", 
-        max_length=1, 
-        required=True
-    )
-    modello_veicolo = discord.ui.TextInput(
-        label="🚘 Modello Veicolo", 
-        placeholder="Es. Wolfsburg Marin", 
-        required=True, 
-        max_length=40
-    )
-    targa_veicolo = discord.ui.TextInput(
-        label="🔢 Targa Veicolo", 
-        placeholder="Es. AB/CD/10", 
-        required=True, 
-        max_length=15
-    )
-    motivazione = discord.ui.TextInput(
-        label="📋 Motivazione della Richiesta", 
-        placeholder="Es. Per uso lavorativo", 
-        required=True, 
-        max_length=200
-    )
+# ==========================================
+# 🚗 MODALE RICHIESTA PATENTI (A, B, C, D)
+# ==========================================
+class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
+    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    tipo_patente = discord.ui.TextInput(label="📜 Tipo Patente (A / B / C / D)", placeholder="Es. B", required=True, max_length=2)
 
     async def on_submit(self, interaction: discord.Interaction):
-        cat_upper = self.categoria.value.strip().upper()
-
-        # 1. Controllo Categoria (A, B, C, D)
-        if cat_upper not in ['A', 'B', 'C', 'D']:
-            await interaction.response.send_message(
-                "❌ **Categoria Non Valida!** Inserisci solo la lettera **A**, **B**, **C** oppure **D** 🏍️🚗🚛🚌.", 
-                ephemeral=True
-            )
-            return
-
-        # 2. Controllo Possesso Ruolo Patente
-        ruolo_patente_id = RUOLI_PATENTI.get(cat_upper)
-        ruolo_patente = interaction.guild.get_role(ruolo_patente_id) if ruolo_patente_id else None
-
-        if ruolo_patente and ruolo_patente in interaction.user.roles:
-            await interaction.response.send_message(
-                f"⚠️ **Possiedi già la Patente Categoria {cat_upper}!** Non puoi richiederla nuovamente.",
-                ephemeral=True
-            )
-            return
-
         await interaction.response.defer(ephemeral=True)
 
-        user_id_str = str(interaction.user.id)
-        data = load_data()
-        cittadinanze = data.get("cittadinanze", {})
-
-        # 3. Verifico la presenza della Cittadinanza
-        if user_id_str not in cittadinanze:
-            await interaction.followup.send(
-                "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
-                ephemeral=True
-            )
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if not canale_log:
+            await interaction.followup.send(f"❌ Errore: Canale log documenti (`{ID_CANALE_LOG_DOCUMENTI}`) non trovato nel server!", ephemeral=True)
             return
 
-        dati_reg = cittadinanze[user_id_str]
-        
-        # 4. Controllo corrispondenza Nome RP
-        if self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower():
-            await interaction.followup.send(
-                "❌ **Nome RP non corrispondente alla Cittadinanza!**\n"
-                f"Il nome inserito deve essere identico a quello registrato: `{dati_reg['nome_rp']}`.",
-                ephemeral=True
-            )
+        pat_val = self.tipo_patente.value.strip().upper()
+        if pat_val not in ["A", "B", "C", "D"]:
+            await interaction.followup.send("❌ Tipo di patente non valido! Inserisci una lettera tra **A, B, C o D**.", ephemeral=True)
             return
 
-        canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
-        if not canale_staff:
-            await interaction.followup.send("❌ **Errore:** Canale staff per l'approvazione non trovato!", ephemeral=True)
-            return
-
-        embed = discord.Embed(
-            title=f"📥 NUOVA RICHIESTA: PATENTE {cat_upper}",
+        embed_richiesta = discord.Embed(
+            title=f"📥 NUOVA RICHIESTA: PATENTE {pat_val}",
+            description=(
+                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
+                f"🚗 **Tipo Patente:** `{pat_val}`"
+            ),
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
-        embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
-        embed.add_field(name="🎮 Account Roblox", value=f"`{dati_reg.get('roblox_user', 'N/D')}`", inline=True)
-        embed.add_field(name="🛞 Categoria", value=f"**Patente {cat_upper}**", inline=True)
-        embed.add_field(name="🚘 Modello Veicolo", value=f"`{self.modello_veicolo.value}`", inline=True)
-        embed.add_field(name="🔢 Targa Veicolo", value=f"`{self.targa_veicolo.value}`", inline=True)
-        embed.add_field(name="📋 Motivazione", value=f"```\n{self.motivazione.value}\n```", inline=False)
+        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione Staff/FDO")
 
-        view_staff = VistaApprovazioneStaff(
-            tipo_documento=f"Patente {cat_upper}",
-            nome_rp=self.nome_cognome.value,
-            roblox_user=dati_reg.get('roblox_user', 'N/D'),
-            cat_patente=cat_upper,
-            modello_veicolo=self.modello_veicolo.value,
-            targa_veicolo=self.targa_veicolo.value,
-            motivazione=self.motivazione.value,
-            target_user_id=interaction.user.id
+        vista = VistaApprovazioneDocumenti(
+            user_id=str(interaction.user.id),
+            nome_rp=self.nome_rp.value.strip(),
+            roblox_user=self.roblox_user.value.strip(),
+            tipo_doc=f"Patente {pat_val}"
         )
 
-        await canale_staff.send(embed=embed, view=view_staff)
-        await interaction.followup.send(f"🧟 **Richiesta per la Patente {cat_upper} inviata allo Staff per l'approvazione!** 🏁", ephemeral=True)
+        try:
+            await canale_log.send(embed=embed_richiesta, view=vista)
+            await interaction.followup.send("✅ **Modulo inviato con successo!** La tua richiesta per la patente è in fase di valutazione.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
 
 
-# --- Modale Porto d'Armi (Con Tipo di Arma) ---
-class ModalPortoDArmi(discord.ui.Modal, title="🪦 Licenza Porto d'Armi Legale"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. MarioRoblox123", required=True, max_length=40)
-    tipo_arma = discord.ui.TextInput(label="🔫 Tipo di Arma", placeholder="Es. Glock-17", required=True, max_length=40)
-    motivazione = discord.ui.TextInput(
-        label="📋 Motivazione della Richiesta", 
-        style=discord.TextStyle.paragraph, 
-        placeholder="Spiega dettagliatamente il motivo della richiesta...", 
-        required=True,
-        max_length=500
-    )
+# ==========================================
+# 🔫 MODALE RICHIESTA PORTO D'ARMI
+# ==========================================
+class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Puglia RP"):
+    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    motivazione = discord.ui.TextInput(label="📝 Motivazione Richiesta", placeholder="Es. Difesa personale / Lavoro", required=True, style=discord.TextStyle.paragraph, max_length=300)
 
     async def on_submit(self, interaction: discord.Interaction):
-        ruolo_armi = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-        if ruolo_armi and ruolo_armi in interaction.user.roles:
-            await interaction.response.send_message(
-                "⚠️ **Possiedi già la Licenza del Porto d'Armi!** Non puoi richiederla nuovamente.",
-                ephemeral=True
-            )
-            return
-
         await interaction.response.defer(ephemeral=True)
 
-        user_id_str = str(interaction.user.id)
-        data = load_data()
-        cittadinanze = data.get("cittadinanze", {})
-
-        if user_id_str not in cittadinanze:
-            await interaction.followup.send(
-                "🧙‍♂️ **Non hai ancora compilato la Cittadinanza!** Devi prima inviare il modulo per la **Cittadinanza Ufficiale** 📜.",
-                ephemeral=True
-            )
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if not canale_log:
+            await interaction.followup.send(f"❌ Errore: Canale log documenti (`{ID_CANALE_LOG_DOCUMENTI}`) non trovato nel server!", ephemeral=True)
             return
 
-        dati_reg = cittadinanze[user_id_str]
-        
-        nome_errato = self.nome_cognome.value.strip().lower() != dati_reg["nome_rp"].lower()
-        roblox_errato = self.roblox_user.value.strip().lower() != dati_reg["roblox_user"].lower()
-
-        if nome_errato or roblox_errato:
-            await interaction.followup.send(
-                "❌ **Dati non corrispondenti alla Cittadinanza!**\n"
-                "I dati inseriti devono essere **identici** a quelli inviati nella tua Cittadinanza Ufficiale:\n"
-                f"• **Nome RP salvato:** `{dati_reg['nome_rp']}`\n"
-                f"• **Account Roblox salvato:** `{dati_reg['roblox_user']}`",
-                ephemeral=True
-            )
-            return
-
-        canale_staff = interaction.guild.get_channel(ID_CANALE_ACCETTAZIONE_STAFF)
-        if not canale_staff:
-            await interaction.followup.send("❌ **Errore:** Canale staff per l'approvazione non trovato!", ephemeral=True)
-            return
-
-        embed = discord.Embed(
+        embed_richiesta = discord.Embed(
             title="📥 NUOVA RICHIESTA: PORTO D'ARMI",
+            description=(
+                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
+                f"📝 **Motivazione:** `{self.motivazione.value.strip()}`"
+            ),
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=True)
-        embed.add_field(name="📜 Nome RP", value=f"`{self.nome_cognome.value}`", inline=True)
-        embed.add_field(name="🎮 Account Roblox", value=f"`{self.roblox_user.value}`", inline=True)
-        embed.add_field(name="🔫 Tipo di Arma", value=f"`{self.tipo_arma.value}`", inline=True)
-        embed.add_field(name="📋 Motivazione RP", value=f"```\n{self.motivazione.value}\n```", inline=False)
+        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione Staff/FDO")
 
-        view_staff = VistaApprovazioneStaff(
-            tipo_documento="Porto d'Armi",
-            nome_rp=self.nome_cognome.value,
-            roblox_user=self.roblox_user.value,
-            tipo_arma=self.tipo_arma.value,
-            motivazione=self.motivazione.value,
-            target_user_id=interaction.user.id
+        vista = VistaApprovazioneDocumenti(
+            user_id=str(interaction.user.id),
+            nome_rp=self.nome_rp.value.strip(),
+            roblox_user=self.roblox_user.value.strip(),
+            tipo_doc="Porto d'Armi"
         )
 
-        await canale_staff.send(embed=embed, view=view_staff)
-        await interaction.followup.send("🩸 **Richiesta di Porto d'Armi inviata allo Staff per l'approvazione!** 🗡️", ephemeral=True)
+        try:
+            await canale_log.send(embed=embed_richiesta, view=vista)
+            await interaction.followup.send("✅ **Modulo inviato con successo!** La tua richiesta per il porto d'armi è in fase di valutazione.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
 
 
 # --- Vista dei Pulsanti ---
