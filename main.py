@@ -1058,9 +1058,8 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, view=VistaContoBancario())
 
 # ==========================================
-# ❌ COMANDO /REVOCA FIXATO (Senza blocchi/caricamenti infiniti)
+# ❌ COMANDO /REVOCA (RIFATTO E COMPLETO)
 # ==========================================
-
 @bot.tree.command(name="revoca", description="Revoca licenze, patenti, cittadinanza o status ad un utente")
 @app_commands.describe(utente="L'utente a cui revocare il documento/licenza", tipo="Cosa vuoi revocare?")
 @app_commands.choices(tipo=[
@@ -1069,22 +1068,18 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     app_commands.Choice(name="🚛 Patente C (Camion)", value="patente_c"),
     app_commands.Choice(name="🚌 Patente D (Autobus)", value="patente_d"),
     app_commands.Choice(name="🔫 Porto d'Armi", value="porto_darmi"),
-    app_commands.Choice(name="📃 Cittadinanza", value="cittadinanza"),
-    app_commands.Choice(name="🏦 Conto Bancario", value="documenti"),
+    app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
+    app_commands.Choice(name="🏦 Conto Bancario / Documenti", value="documenti"),
     app_commands.Choice(name="🛡️ Identificazione Staff", value="staff")
 ])
 async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
     await interaction.response.defer(ephemeral=True)
 
     try:
-        # 1. Permessi (Staff vs FDO)
-        is_staff = interaction.user.guild_permissions.manage_messages or interaction.user.guild_permissions.administrator
+        # 1. Controllo Permessi (Staff vs FDO)
+        is_staff = any(role.id == ID_RUOLO_STAFF for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
+        is_fdo = any(role.id == ID_RUOLO_FDO for role in interaction.user.roles)
         
-        # Gestione sicura del controllo ruolo FDO
-        is_fdo = False
-        if hasattr(interaction.user, "roles"):
-            is_fdo = any(role.id == ID_RUOLO_FDO for role in interaction.user.roles)
-
         licenze_fdo = ["patente_a", "patente_b", "patente_c", "patente_d", "porto_darmi"]
 
         if not is_staff and not is_fdo:
@@ -1107,83 +1102,76 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
         messaggio = ""
         modificato = False
 
-        # --- REVOCA PATENTI ---
-        if tipo.value in ["patente_a", "patente_b", "patente_c", "patente_d"]:
-            nome_documento = tipo.name
-            if user_licenze.get(tipo.value, False):
-                user_licenze[tipo.value] = False
-                modificato = True
-                messaggio = f"✅ **{nome_documento}** revocata con successo a {utente.mention}!"
-            else:
-                messaggio = f"❌ {utente.mention} non possiede attualmente la **{nome_documento}**."
+        # --- REVOCA PATENTI (A, B, C, D) ---
+        if tipo.value in RUOLI_PATENTI:
+            role_id = RUOLI_PATENTI[tipo.value]
+            user_licenze[tipo.value] = False
+            modificato = True
+            messaggio = f"✅ **{tipo.name}** revocata con successo a {utente.mention}!"
+
+            # Rimuove il ruolo Discord della patente se presente
+            ruolo = interaction.guild.get_role(role_id)
+            if ruolo and ruolo in utente.roles:
+                try:
+                    await utente.remove_roles(ruolo, reason="Patente revocata")
+                except Exception:
+                    pass
 
         # --- REVOCA PORTO D'ARMI ---
         elif tipo.value == "porto_darmi":
-            if user_licenze.get("porto_darmi", False):
-                user_licenze["porto_darmi"] = False
-                modificato = True
-                messaggio = f"✅ **Porto d'Armi** revocato con successo a {utente.mention}!"
-                
-                if ID_RUOLO_PORTO_DARMI != 1562894902428442695:
-                    ruolo = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-                    if ruolo and ruolo in utente.roles:
-                        try:
-                            await utente.remove_roles(ruolo, reason="Porto d'armi revocato")
-                        except Exception:
-                            pass
-            else:
-                messaggio = f"❌ {utente.mention} non possiede il Porto d'Armi."
+            user_licenze["porto_darmi"] = False
+            modificato = True
+            messaggio = f"✅ **Porto d'Armi** revocato con successo a {utente.mention}!"
+            
+            ruolo = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+            if ruolo and ruolo in utente.roles:
+                try:
+                    await utente.remove_roles(ruolo, reason="Porto d'armi revocato")
+                except Exception:
+                    pass
 
         # --- REVOCA CITTADINANZA ---
         elif tipo.value == "cittadinanza":
-            if user_licenze.get("cittadinanza", True):
-                user_licenze["cittadinanza"] = False
-                modificato = True
-                messaggio = f"✅ **Cittadinanza** revocata con successo a {utente.mention}!"
+            user_licenze["cittadinanza"] = False
+            modificato = True
+            messaggio = f"✅ **Cittadinanza** revocata con successo a {utente.mention}!"
 
-                if ID_RUOLO_CITTADINO != 1562894350135066674:
-                    ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-                    if ruolo and ruolo in utente.roles:
-                        try:
-                            await utente.remove_roles(ruolo, reason="Cittadinanza revocata")
-                        except Exception:
-                            pass
-            else:
-                messaggio = f"❌ {utente.mention} non possiede la cittadinanza attiva."
+            ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+            if ruolo and ruolo in utente.roles:
+                try:
+                    await utente.remove_roles(ruolo, reason="Cittadinanza revocata")
+                except Exception:
+                    pass
 
         # --- REVOCA CONTO BANCARIO / DOCUMENTI ---
         elif tipo.value == "documenti":
             eco_data = data.setdefault("economia", {}).setdefault(user_id_str, {})
-            if eco_data.get("has_account") or eco_data.get("bank", 0) > 0:
-                eco_data["has_account"] = False
-                eco_data["bank"] = 0
-                modificato = True
-                messaggio = f"✅ Conto bancario e documenti revocati a {utente.mention}!"
-            else:
-                messaggio = f"❌ {utente.mention} non ha un conto bancario attivo da revocare."
+            eco_data["has_account"] = False
+            eco_data["bank"] = 0
+            modificato = True
+            messaggio = f"✅ Conto bancario e documenti revocati a {utente.mention}!"
 
-        # --- REVOCA IDENTIFICAZIONE STAFF & CANCELLAZIONE FORUM ---
+        # --- REVOCA IDENTIFICAZIONE STAFF & FORUM ---
         elif tipo.value == "staff":
             staff_data = data.get("identificazioni_staff", {})
-            if user_id_str in staff_data:
-                info_staff = staff_data.pop(user_id_str)
-                data["identificazioni_staff"] = staff_data
-                modificato = True
-                messaggio = f"✅ L'identificazione Staff di {utente.mention} è stata revocata con successo!"
+            info_staff = staff_data.pop(user_id_str, None)
+            data["identificazioni_staff"] = staff_data
+            modificato = True
+            messaggio = f"✅ L'identificazione Staff di {utente.mention} è stata revocata con successo!"
 
-                # Toglie il ruolo Staff
-                if ID_RUOLO_STAFF != 1562507751975035065:
-                    ruolo = interaction.guild.get_role(ID_RUOLO_STAFF)
-                    if ruolo and ruolo in utente.roles:
-                        try:
-                            await utente.remove_roles(ruolo, reason="Identificazione Staff revocata")
-                        except Exception:
-                            pass
+            # Rimuove ruolo Staff
+            ruolo = interaction.guild.get_role(ID_RUOLO_STAFF)
+            if ruolo and ruolo in utente.roles:
+                try:
+                    await utente.remove_roles(ruolo, reason="Identificazione Staff revocata")
+                except Exception:
+                    pass
 
-                # Cerca ed elimina il post nel Forum in modo sicuro
+            # Cancella il post dal Forum Staff
+            if info_staff:
                 try:
                     forum_channel = interaction.guild.get_channel(ID_FORUM_STAFF_IDENTIFICATI)
-                    if forum_channel and hasattr(forum_channel, "threads"):
+                    if forum_channel and isinstance(forum_channel, discord.ForumChannel):
                         roblox_user = info_staff.get("roblox_user", "")
                         for thread in forum_channel.threads:
                             if roblox_user and roblox_user.lower() in thread.name.lower():
@@ -1192,8 +1180,6 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                                 break
                 except Exception:
                     pass
-            else:
-                messaggio = f"❌ {utente.mention} non risulta identificato nello Staff."
 
         if modificato:
             save_data(data)
@@ -1201,8 +1187,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
         await interaction.followup.send(messaggio, ephemeral=True)
 
     except Exception as e:
-        # Se c'è qualunque errore imprevisto, risponde subito evitando il blocco
-        await interaction.followup.send(f"❌ Si è verificato un errore nell'esecuzione: `{e}`", ephemeral=True)
+        await interaction.followup.send(f"❌ Si è verificato un errore: `{e}`", ephemeral=True)
 
 # ==========================================
 # 💸 MODULO: MULTE AVANZATE (BANCA / CONTANTI + NEGATIVO)
