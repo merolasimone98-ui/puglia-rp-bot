@@ -825,81 +825,84 @@ async def task_reset_settimanale():
                 await aggiorna_leaderboard_embed(guild)
 
 # ==========================================
-# 💳 MODULO: ECONOMIA, BANCA & MULTE
+# 🏦 MODULO CONTO BANCARIO DIRECT (APERTURA ISTANTANEA)
 # ==========================================
 
-# ==========================================
-# 🏦 MODALE APERTURA CONTO BANCARIO (FIXATO)
-# ==========================================
-class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
-    nome_cognome = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
+# 1. Modale compilato dall'utente
+class ModalApriContoIstantaneo(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
+    nome_cognome = discord.ui.TextInput(
+        label="👤 Nome e Cognome RP", 
+        placeholder="Es. Mario Rossi", 
+        required=True, 
+        max_length=40
+    )
+    eta_rp = discord.ui.TextInput(
+        label="🎂 Età RP", 
+        placeholder="Es. 25", 
+        required=True, 
+        max_length=10
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
         data = load_data()
 
-        # 1. Recupero dati licenze e cittadinanza
-        licenze_data = data.get("licenze_cittadini", {}).get(user_id_str, {})
-        has_cittadinanza = licenze_data.get("cittadinanza", False)
-
-        # Se non è salvata in licenze_cittadini, controlliamo anche le vecchie chiavi per compatibilità
-        if not has_cittadinanza:
-            cittadinanze_old = data.get("cittadinanze", {})
-            has_cittadinanza = user_id_str in cittadinanze_old
-
-        if not has_cittadinanza:
-            await interaction.followup.send(
-                "❌ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo nel canale apposito "
-                f"<#{ID_CANALE_LOG_DOCUMENTI}> per ottenere la **Cittadinanza Ufficiale** prima di poter aprire un conto bancario 📜.",
-                ephemeral=True
-            )
-            return
-
-        # 2. Controllo se possiede già un conto attivo
+        # Controlliamo se ha già un conto bancario attivo
         eco = get_user_eco(user_id_str)
         if eco.get("has_account"):
-            await interaction.followup.send("❌ **Possiedi già un conto corrente attivo!**", ephemeral=True)
+            await interaction.followup.send("❌ **Possiedi già un conto corrente attivo su Puglia RP!**", ephemeral=True)
             return
 
-        # 3. Attivazione Conto + Accredito Bonus Benvenuto (€1.000)
+        # Attivazione immediata + accredito bonus benvenuto € 1.000
         eco["bank"] = eco.get("bank", 0) + 1000
         eco["has_account"] = True
         update_user_eco(user_id_str, eco)
 
+        # Registriamo il nome RP nei dati dell'utente
+        rp_names = data.setdefault("rp_names", {})
+        rp_names[user_id_str] = self.nome_cognome.value.strip()
+        save_data(data)
+
+        # Embed di conferma istantaneo all'utente
         embed = discord.Embed(
-            title="🏦 CONTO BANCARIO APERTO CON SUCCESSO! 🎉",
-            description=f"Congratulazioni **{self.nome_cognome.value.strip()}** ({self.eta_rp.value.strip()} anni)!\n\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati sul tuo nuovo conto.",
+            title="🎉 CONTO BANCARIO APERTO CON SUCCESSO!",
+            description=(
+                f"Benvenuto nella gestione finanziaria di **Puglia RP**, **{self.nome_cognome.value.strip()}**!\n\n"
+                f"💳 **Stato Conto:** `ATTIVO`\n"
+                f"👤 **Intestatario RP:** `{self.nome_cognome.value.strip()}` (`{self.eta_rp.value.strip()} anni`)\n"
+                f"💰 **Bonus di Benvenuto:** `€ 1.000` accreditati sul tuo conto corrente!"
+            ),
             color=discord.Color.from_rgb(46, 204, 113),
             timestamp=discord.utils.utcnow()
         )
+        embed.set_footer(text="Banca di Puglia RP • Servizi Finanziari Digitali")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
+# 2. Vista del Pannello con il Pulsante "Apri Conto Bancario"
 class VistaContoBancario(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Apri Conto Bancario", style=discord.ButtonStyle.success, emoji="💳", custom_id="btn_apri_conto")
+    @discord.ui.button(label="Apri Conto Bancario", style=discord.ButtonStyle.success, emoji="💳", custom_id="btn_apri_conto_bancario_direct")
     async def btn_apri_conto(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Apriamo SUBITO la modale senza attendere controlli di rete per evitare "Unknown interaction"
-        await interaction.response.send_modal(ModalApriConto())
+        # Apre subito il modale corretto all'utente
+        await interaction.response.send_modal(ModalApriContoIstantaneo())
 
 
-@bot.tree.command(name="pannello-contobancario", description="Invia il nuovo pannello per l'apertura del conto bancario (Solo Admin)")
+# 3. Comando Slash per spawnare il Pannello Bancario (Solo Admin)
+@bot.tree.command(name="pannello-contobancario", description="Invia il pannello per l'apertura immediata del conto bancario (Solo Admin)")
 @app_commands.checks.has_permissions(administrator=True)
 async def pannello_conto_cmd(interaction: discord.Interaction):
-    # Notifichiamo subito a Discord che l'operazione è in corso
     await interaction.response.defer()
 
     embed = discord.Embed(
-        title="🏦 BANCA DI PUGLIA RP — SERVIZI FINANZIARI 🏴‍☠️",
+        title="🏛️ BANCA DI PUGLIA RP — SERVIZI FINANZIARI 🏴‍☠️",
         description=(
-            "🧟‍♂️ **Benvenuto allo sportello bancario ufficiale!** 👻\n\n"
-            "📋 **Requisiti per l'apertura:**\n"
-            "• Possedere la **Cittadinanza Ufficiale** approvata 📜.\n"
+            "🕵️‍♂️ **Benvenuto allo sportello bancario ufficiale!**\n\n"
+            "📜 **Requisiti per l'apertura:**\n"
             "• Inserire i propri dati anagrafici corretti in RP.\n\n"
             "🎁 **Vantaggi immediati:**\n"
             "Ricevi subito **€ 1.000** di bonus benvenuto sul tuo nuovo conto corrente!\n\n"
@@ -910,7 +913,7 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     )
     if interaction.guild.icon:
         embed.set_thumbnail(url=interaction.guild.icon.url)
-    embed.set_footer(text="Puglia RP • Gestione Finanziaria Sicura 💳", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+    embed.set_footer(text="Puglia RP • Gestione Finanziaria Sicura")
 
     await interaction.followup.send(embed=embed, view=VistaContoBancario())
 
