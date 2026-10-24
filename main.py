@@ -1069,8 +1069,8 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     app_commands.Choice(name="🚛 Patente C (Camion)", value="patente_c"),
     app_commands.Choice(name="🚌 Patente D (Autobus)", value="patente_d"),
     app_commands.Choice(name="🔫 Porto d'Armi", value="porto_darmi"),
-    app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
-    app_commands.Choice(name="🏦 Conto Bancario / Documenti", value="documenti"),
+    app_commands.Choice(name="📃 Cittadinanza", value="cittadinanza"),
+    app_commands.Choice(name="🏦 Conto Bancario", value="documenti"),
     app_commands.Choice(name="🛡️ Identificazione Staff", value="staff")
 ])
 async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
@@ -1124,7 +1124,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                 modificato = True
                 messaggio = f"✅ **Porto d'Armi** revocato con successo a {utente.mention}!"
                 
-                if ID_RUOLO_PORTO_DARMI != 0:
+                if ID_RUOLO_PORTO_DARMI != 1562894902428442695:
                     ruolo = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
                     if ruolo and ruolo in utente.roles:
                         try:
@@ -1141,7 +1141,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                 modificato = True
                 messaggio = f"✅ **Cittadinanza** revocata con successo a {utente.mention}!"
 
-                if ID_RUOLO_CITTADINO != 0:
+                if ID_RUOLO_CITTADINO != 1562894350135066674:
                     ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
                     if ruolo and ruolo in utente.roles:
                         try:
@@ -1172,7 +1172,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                 messaggio = f"✅ L'identificazione Staff di {utente.mention} è stata revocata con successo!"
 
                 # Toglie il ruolo Staff
-                if ID_RUOLO_STAFF != 0:
+                if ID_RUOLO_STAFF != 1562507751975035065:
                     ruolo = interaction.guild.get_role(ID_RUOLO_STAFF)
                     if ruolo and ruolo in utente.roles:
                         try:
