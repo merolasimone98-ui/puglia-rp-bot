@@ -343,46 +343,108 @@ class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
 
 
 # ==========================================
-# 🔫 MODALE RICHIESTA PORTO D'ARMI
+# 🔫 MODALE PORTO D'ARMI (CON MODELLO ARMA)
 # ==========================================
 class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Puglia RP"):
-    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. Player123", required=True, max_length=40)
-    motivazione = discord.ui.TextInput(label="📝 Motivazione Richiesta", placeholder="Es. Difesa personale / Lavoro", required=True, style=discord.TextStyle.paragraph, max_length=300)
+    nome_rp = discord.ui.TextInput(
+        label="👤 Nome e Cognome RP",
+        placeholder="Es. Mario Rossi",
+        required=True,
+        max_length=50
+    )
+    roblox_user = discord.ui.TextInput(
+        label="🎮 Account Roblox",
+        placeholder="Es. Player123",
+        required=True,
+        max_length=50
+    )
+    modello_arma = discord.ui.TextInput(
+        label="🔫 Modello Arma Richiesta",
+        placeholder="Es. Glock-17, Beretta 92FS...",
+        required=True,
+        max_length=50
+    )
+    motivazione = discord.ui.TextInput(
+        label="📝 Motivazione Richiesta",
+        style=discord.TextStyle.paragraph,
+        placeholder="Es. Difesa personale / Lavoro di sicurezza",
+        required=True,
+        max_length=300
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
 
+        # 1. Salva nei dati locali
+        data = load_data()
+        licenze_data = data.setdefault("licenze_cittadini", {})
+        user_lic = licenze_data.setdefault(user_id_str, {})
+        user_lic["porto_darmi"] = True
+        save_data(data)
+
+        # 2. Assegna il Ruolo Discord Porto d'Armi
+        if ID_RUOLO_PORTO_DARMI != 0:
+            ruolo = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+            if ruolo:
+                try:
+                    await interaction.user.add_roles(ruolo, reason="Porto d'armi approvato")
+                except Exception:
+                    pass
+
+        # 3. Invia Log nel canale Log Documenti
         canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
-        if not canale_log:
-            await interaction.followup.send(f"❌ Errore: Canale log documenti (`{ID_CANALE_LOG_DOCUMENTI}`) non trovato nel server!", ephemeral=True)
-            return
+        if canale_log:
+            embed_log = discord.Embed(
+                title="🔫 NUOVO PORTO D'ARMI REGISTRATO",
+                description=(
+                    f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                    f"🎮 **Roblox:** `{self.roblox_user.value.strip()}`\n"
+                    f"🔫 **Modello Arma:** `{self.modello_arma.value.strip()}`\n"
+                    f"📝 **Motivazione:** `{self.motivazione.value.strip()}`"
+                ),
+                color=discord.Color.red(),
+                timestamp=discord.utils.utcnow()
+            )
+            embed_log.set_footer(text="Puglia RP • Licenza Armi Attiva")
+            await canale_log.send(embed=embed_log)
 
-        embed_richiesta = discord.Embed(
-            title="📥 NUOVA RICHIESTA: PORTO D'ARMI",
+        # 4. Crea la Scheda Ufficiale nel Forum Documenti
+        forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+            embed_forum = discord.Embed(
+                title=f"🔫 PORTO D'ARMI — {self.nome_rp.value.strip()}",
+                description=(
+                    f"👤 **Intestatario:** {interaction.user.mention}\n"
+                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                    f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
+                    f"🔫 **Modello Arma Registrata:** `{self.modello_arma.value.strip()}`\n"
+                    f"📝 **Motivazione:** `{self.motivazione.value.strip()}`\n"
+                    f"💳 **Stato Licenza:** `VALIDA ✅`"
+                ),
+                color=discord.Color.red(),
+                timestamp=discord.utils.utcnow()
+            )
+            try:
+                await forum_channel.create_thread(
+                    name=f"🔫 PORTO D'ARMI | {self.nome_rp.value.strip()} ({self.modello_arma.value.strip()})",
+                    embed=embed_forum
+                )
+            except Exception:
+                pass
+
+        # 5. Messaggio di conferma all'utente
+        embed_conferma = discord.Embed(
+            title="🔫 PORTO D'ARMI RILASCIATO CON SUCCESSO!",
             description=(
-                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
-                f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
-                f"📝 **Motivazione:** `{self.motivazione.value.strip()}`"
+                f"Il tuo Porto d'Armi per **{self.modello_arma.value.strip()}** è stato approvato e registrato.\n\n"
+                f"🎗️ Ti è stato assegnato il ruolo ufficiale e la scheda è stata salvata nel **Forum Documenti**."
             ),
-            color=discord.Color.orange(),
+            color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
-        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione Staff/FDO")
-
-        vista = VistaApprovazioneDocumenti(
-            user_id=str(interaction.user.id),
-            nome_rp=self.nome_rp.value.strip(),
-            roblox_user=self.roblox_user.value.strip(),
-            tipo_doc="Porto d'Armi"
-        )
-
-        try:
-            await canale_log.send(embed=embed_richiesta, view=vista)
-            await interaction.followup.send("✅ **Modulo inviato con successo!** La tua richiesta per il porto d'armi è in fase di valutazione.", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
+        await interaction.followup.send(embed=embed_conferma, ephemeral=True)
 
 # ==========================================
 # 🛡️ MODALE ASSICURAZIONE
