@@ -384,6 +384,105 @@ class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Pugli
         except Exception as e:
             await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
 
+# ==========================================
+# 🛡️ MODALE ASSICURAZIONE
+# ==========================================
+class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione Veicolo"):
+    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    veicolo = discord.ui.TextInput(label="🚗 Modello Veicolo e Targa", placeholder="Es. Fiat Punto - AA123BB", required=True, max_length=60)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
+        
+        # 1. Scalo dei €500
+        eco = get_user_eco(user_id_str)
+        cash = eco.get("cash", 0)
+        bank = eco.get("bank", 0)
+
+        if cash >= 500:
+            eco["cash"] -= 500
+        elif bank >= 500:
+            eco["bank"] -= 500
+        else:
+            await interaction.followup.send(
+                f"❌ **Fondi insufficienti!** L'assicurazione costa **€ 500**. "
+                f"Hai solo € {cash:,} in contanti e € {bank:,} in banca.", 
+                ephemeral=True
+            )
+            return
+
+        update_user_eco(user_id_str, eco)
+
+        # 2. Salva nei dati
+        data = load_data()
+        licenze_data = data.setdefault("licenze_cittadini", {})
+        user_lic = licenze_data.setdefault(user_id_str, {})
+        user_lic["assicurazione"] = True
+        save_data(data)
+
+        # 3. Assegna Ruolo
+        if ID_RUOLO_ASSICURATO != 0:
+            ruolo = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
+            if ruolo:
+                try:
+                    await interaction.user.add_roles(ruolo, reason="Assicurazione veicolo stipulata")
+                except Exception:
+                    pass
+
+        # 4. Log Documenti
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if canale_log:
+            embed_log = discord.Embed(
+                title="🛡️ NUOVA ASSICURAZIONE STIPULATA",
+                description=(
+                    f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                    f"🚘 **Veicolo & Targa:** `{self.veicolo.value.strip()}`\n"
+                    f"💰 **Costo Pagato:** `€ 500`"
+                ),
+                color=discord.Color.blue(),
+                timestamp=discord.utils.utcnow()
+            )
+            embed_log.set_footer(text="Puglia RP • Polizza Assicurativa Attiva")
+            await canale_log.send(embed=embed_log)
+
+        # 5. Thread Forum Documenti
+        forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+            embed_forum = discord.Embed(
+                title=f"🛡️ ASSICURAZIONE VEICOLO — {self.nome_rp.value.strip()}",
+                description=(
+                    f"👤 **Intestatario:** {interaction.user.mention}\n"
+                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                    f"🚘 **Veicolo / Targa:** `{self.veicolo.value.strip()}`\n"
+                    f"💳 **Stato Polizza:** `ATTIVA ✅`\n"
+                    f"💰 **Importo Saldato:** `€ 500`"
+                ),
+                color=discord.Color.blue(),
+                timestamp=discord.utils.utcnow()
+            )
+            try:
+                await forum_channel.create_thread(
+                    name=f"🛡️ ASSICURAZIONE | {self.nome_rp.value.strip()} ({self.veicolo.value.strip()})",
+                    embed=embed_forum
+                )
+            except Exception:
+                pass
+
+        # 6. Messaggio di conferma
+        embed_conferma = discord.Embed(
+            title="🛡️ ASSICURAZIONE ATTIVATA CON SUCCESSO!",
+            description=(
+                f"Hai stipulato l'assicurazione per il veicolo **{self.veicolo.value.strip()}**.\n\n"
+                f"💸 **Costo detratto:** `€ 500`\n"
+                f"🎗️ Ti è stato assegnato il ruolo <@&{ID_RUOLO_ASSICURATO}> e la polizza è registrata nel Forum Documenti."
+            ),
+            color=discord.Color.green(),
+            timestamp=discord.utils.utcnow()
+        )
+        await interaction.followup.send(embed=embed_conferma, ephemeral=True)
+
 
 # --- Vista dei Pulsanti ---
 class VistaPannelloDocumenti(discord.ui.View):
