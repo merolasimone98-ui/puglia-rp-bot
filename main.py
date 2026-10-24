@@ -123,107 +123,91 @@ def update_user_duty(user_id_str, duty_data):
 # ==========================================
 ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544 
 
-# --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
-# --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
-class VistaApprovazioneStaff(discord.ui.View):
-    def __init__(self, tipo_documento, nome_rp, roblox_user, eta_rp=None, cat_patente=None, modello_veicolo=None, targa_veicolo=None, tipo_arma=None, motivazione=None, target_user_id=None):
+# ==========================================
+# 🔘 VISTA APPROVAZIONE DOCUMENTI (PERSISTENTE)
+# ==========================================
+class VistaApprovazioneDocumenti(discord.ui.View):
+    def __init__(self, user_id: str, nome_rp: str, roblox_user: str, tipo_doc: str = "Cittadinanza"):
         super().__init__(timeout=None)
-        self.tipo_documento = tipo_documento
+        self.user_id = user_id
         self.nome_rp = nome_rp
         self.roblox_user = roblox_user
-        self.eta_rp = eta_rp
-        self.cat_patente = cat_patente
-        self.modello_veicolo = modello_veicolo
-        self.targa_veicolo = targa_veicolo
-        self.tipo_arma = tipo_arma
-        self.motivazione = motivazione
-        self.target_user_id = target_user_id
+        self.tipo_doc = tipo_doc
 
-    @discord.ui.button(label="Accetta Documento", style=discord.ButtonStyle.success, emoji="🟢", custom_id="btn_accetta_doc")
-    async def btn_accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
-        if role_staff not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ **Solo lo Staff può accettare i documenti!**", ephemeral=True)
-            return
-
+    @discord.ui.button(label="Accetta Documento", style=discord.ButtonStyle.success, custom_id="btn_accetta_documento")
+    async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # ⚡ Risposta immediata a Discord per evitare il "non ha risposto in tempo"
         await interaction.response.defer()
 
-        forum = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        target_member = interaction.guild.get_member(self.target_user_id)
-        mention_str = target_member.mention if target_member else f"<@{self.target_user_id}>"
+        try:
+            data = load_data()
+            user_id_str = str(self.user_id)
 
-        if forum and isinstance(forum, discord.ForumChannel):
-            embed_forum = discord.Embed(
-                title=f"📑 DOCUMENTO APPROVATO: {self.tipo_documento.upper()}",
-                color=discord.Color.green(),
-                timestamp=discord.utils.utcnow()
-            )
-            embed_forum.add_field(name="👤 Utente Discord", value=mention_str, inline=True)
-            embed_forum.add_field(name="📜 Nome RP", value=f"`{self.nome_rp}`", inline=True)
-            embed_forum.add_field(name="🎮 Roblox", value=f"`{self.roblox_user}`", inline=True)
-            if self.eta_rp:
-                embed_forum.add_field(name="🎂 Età RP", value=f"`{self.eta_rp} anni`", inline=True)
-            
-            if self.cat_patente:
-                embed_forum.add_field(name="🚗 Categoria", value=f"**Patente {self.cat_patente}**", inline=True)
-            if self.modello_veicolo:
-                embed_forum.add_field(name="🚘 Modello Veicolo", value=f"`{self.modello_veicolo}`", inline=True)
-            if self.targa_veicolo:
-                embed_forum.add_field(name="🔢 Targa Veicolo", value=f"`{self.targa_veicolo}`", inline=True)
-            if self.tipo_arma:
-                embed_forum.add_field(name="🔫 Tipo di Arma", value=f"`{self.tipo_arma}`", inline=True)
-            if self.motivazione:
-                embed_forum.add_field(name="📋 Motivazione", value=f"```\n{self.motivazione}\n```", inline=False)
+            # Salva la cittadinanza/documento nei dati
+            licenze_data = data.setdefault("licenze_cittadini", {})
+            user_lic = licenze_data.setdefault(user_id_str, {})
+            user_lic["cittadinanza"] = True
+            save_data(data)
 
-            embed_forum.add_field(name="👮 Approvato da", value=interaction.user.mention, inline=False)
-
-            titolo_post = f"✅ [{self.tipo_documento}] {self.nome_rp}"
-            try:
-                await forum.create_thread(name=titolo_post, embed=embed_forum)
-            except Exception as e:
-                print(f"Errore creazione post forum: {e}")
-
-        # Assegnazione automatica del ruolo
-        if target_member:
-            try:
-                if self.tipo_documento == "Cittadinanza":
+            # Assegna il ruolo Cittadino all'utente se presente
+            if ID_RUOLO_CITTADINO != 0:
+                member = interaction.guild.get_member(int(self.user_id))
+                if member:
                     ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-                    if ruolo: await target_member.add_roles(ruolo)
-                elif self.tipo_documento.startswith("Patente") and self.cat_patente:
-                    ruolo_id = RUOLI_PATENTI.get(self.cat_patente)
-                    if ruolo_id:
-                        ruolo = interaction.guild.get_role(ruolo_id)
-                        if ruolo: await target_member.add_roles(ruolo)
-                elif self.tipo_documento == "Porto d'Armi":
-                    ruolo = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
-                    if ruolo: await target_member.add_roles(ruolo)
-            except Exception as e:
-                print(f"Errore aggiunta ruolo: {e}")
+                    if ruolo:
+                        try:
+                            await member.add_roles(ruolo, reason="Cittadinanza approvata")
+                        except Exception:
+                            pass
 
-        for child in self.children:
-            child.disabled = True
+            # Aggiorna l'embed nel canale Accettazione Documenti
+            embed = interaction.message.embeds[0]
+            embed.color = discord.Color.green()
+            embed.title = f"✅ RICHIESTA APPROVATA: {self.tipo_doc.upper()}"
+            embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
 
-        embed_orig = interaction.message.embeds[0]
-        embed_orig.color = discord.Color.green()
-        embed_orig.title = f"✅ DOCUMENTO ACCETTATO DA {interaction.user.display_name}"
-        await interaction.message.edit(embed=embed_orig, view=self)
+            # Disabilita i pulsanti
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(embed=embed, view=self)
 
-    @discord.ui.button(label="Rifiuta Documento", style=discord.ButtonStyle.danger, emoji="🔴", custom_id="btn_rifiuta_doc")
-    async def btn_rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        role_staff = interaction.guild.get_role(ROLE_STAFF_BASE_ID)
-        if role_staff not in interaction.user.roles and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ **Solo lo Staff può rifiutare i documenti!**", ephemeral=True)
-            return
+            # 📌 CREA IL POST AUTOMATICO NEL FORUM DOCUMENTI CITTADINI
+            forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+            if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+                embed_forum = discord.Embed(
+                    title=f"📜 DOCUMENTO CITTADINO — {self.nome_rp}",
+                    description=(
+                        f"👤 **Cittadino:** <@{self.user_id}>\n"
+                        f"📄 **Nome RP:** `{self.nome_rp}`\n"
+                        f"🎮 **Account Roblox:** `{self.roblox_user}`\n\n"
+                        "✅ *Documento ufficiale registrato nel sistema di Puglia RP.*"
+                    ),
+                    color=discord.Color.green(),
+                    timestamp=discord.utils.utcnow()
+                )
+                await forum_channel.create_thread(
+                    name=f"🇮🇹丨{self.nome_rp} ({self.roblox_user})",
+                    embed=embed_forum
+                )
 
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore durante l'approvazione: `{e}`", ephemeral=True)
+
+    @discord.ui.button(label="Rifiuta Documento", style=discord.ButtonStyle.danger, custom_id="btn_rifiuta_documento")
+    async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
 
-        for child in self.children:
-            child.disabled = True
+        try:
+            embed = interaction.message.embeds[0]
+            embed.color = discord.Color.red()
+            embed.title = f"❌ RICHIESTA RIFIUTATA: {self.tipo_doc.upper()}"
+            embed.set_footer(text=f"Rifiutato da {interaction.user.display_name}")
 
-        embed_orig = interaction.message.embeds[0]
-        embed_orig.color = discord.Color.red()
-        embed_orig.title = f"❌ DOCUMENTO RIFIUTATO DA {interaction.user.display_name}"
-        await interaction.message.edit(embed=embed_orig, view=self)
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(embed=embed, view=self)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Errore durante il rifiuto: `{e}`", ephemeral=True)
 
 # --- Modale Cittadinanza ---
 class ModalCittadinanza(discord.ui.Modal, title="🎃 Registrazione Cittadinanza"):
