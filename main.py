@@ -43,6 +43,7 @@ ID_RUOLO_CITTADINO = 1562894350135066674
 ID_RUOLO_PORTO_DARMI = 1562894902428442695
 ID_RUOLO_FDO = 1563276863462178956
 ID_RUOLO_STAFF = 1562507751975035065
+ID_RUOLO_ASSICURATO = 1563488413875834890
 
 RUOLI_PATENTI = {
     'patente_a': 1562894624597479555,
@@ -469,7 +470,107 @@ def update_user_eco(user_id_str: str, eco_data: dict):
     data.setdefault("economia", {})[user_id_str] = eco_data
     save_data(data)
 
+# ==========================================
+# 🛡️ SISTEMA ASSICURAZIONE VEICOLI
+# ==========================================
+COSTO_ASSICURAZIONE = 500  # Costo in Euro per la polizza
 
+class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione Veicolo"):
+    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    veicolo = discord.ui.TextInput(label="🚗 Modello Veicolo e Targa", placeholder="Es. Fiat Punto - AA123BB", required=True, max_length=60)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
+        
+        # 1. Controllo Saldo e Scalo Denaro
+        eco = get_user_eco(user_id_str)
+        cash = eco.get("cash", 0)
+        bank = eco.get("bank", 0)
+
+        if cash >= COSTO_ASSICURAZIONE:
+            eco["cash"] -= COSTO_ASSICURAZIONE
+        elif bank >= COSTO_ASSICURAZIONE:
+            eco["bank"] -= COSTO_ASSICURAZIONE
+        else:
+            await interaction.followup.send(
+                f"❌ **Fondi insufficienti!** L'assicurazione costa **€ {COSTO_ASSICURAZIONE:,}**. "
+                f"Hai solo € {cash:,} in contanti e € {bank:,} in banca.", 
+                ephemeral=True
+            )
+            return
+
+        update_user_eco(user_id_str, eco)
+
+        # 2. Salva lo stato nei dati
+        data = load_data()
+        licenze_data = data.setdefault("licenze_cittadini", {})
+        user_lic = licenze_data.setdefault(user_id_str, {})
+        user_lic["assicurazione"] = True
+        save_data(data)
+
+        # 3. Assegna il Ruolo Discord Assicurato
+        if ID_RUOLO_ASSICURATO != 0:
+            ruolo = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
+            if ruolo:
+                try:
+                    await interaction.user.add_roles(ruolo, reason="Assicurazione veicolo stipulata")
+                except Exception:
+                    pass
+
+        # 4. Invia Log nel canale Accettazione Documenti
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if canale_log:
+            embed_log = discord.Embed(
+                title="🛡️ NUOVA ASSICURAZIONE STIPULATA",
+                description=(
+                    f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                    f"🚘 **Veicolo & Targa:** `{self.veicolo.value.strip()}`\n"
+                    f"💰 **Costo Pagato:** `€ {COSTO_ASSICURAZIONE:,}`"
+                ),
+                color=discord.Color.blue(),
+                timestamp=discord.utils.utcnow()
+            )
+            embed_log.set_footer(text="Puglia RP • Polizza Assicurativa Attiva")
+            await canale_log.send(embed=embed_log)
+
+        # 5. Crea il Thread nel Forum Documenti
+        forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
+        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+            embed_forum = discord.Embed(
+                title=f"🛡️ ASSICURAZIONE VEICOLO — {self.nome_rp.value.strip()}",
+                description=(
+                    f"👤 **Intestatario:** {interaction.user.mention}\n"
+                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                    f"🚘 **Veicolo / Targa:** `{self.veicolo.value.strip()}`\n"
+                    f"💳 **Stato Polizza:** `ATTIVA ✅`\n"
+                    f"💰 **Importo Saldato:** `€ {COSTO_ASSICURAZIONE:,}`"
+                ),
+                color=discord.Color.blue(),
+                timestamp=discord.utils.utcnow()
+            )
+            try:
+                await forum_channel.create_thread(
+                    name=f"🛡️ ASSICURAZIONE | {self.nome_rp.value.strip()} ({self.veicolo.value.strip()})",
+                    embed=embed_forum
+                )
+            except Exception:
+                pass
+
+        # 6. Conferma all'utente
+        embed_conferma = discord.Embed(
+            title="🛡️ ASSICURAZIONE ATTIVATA CON SUCCESSO!",
+            description=(
+                f"Hai stipulato l'assicurazione per il veicolo **{self.veicolo.value.strip()}**.\n\n"
+                f"💸 **Costo detratto:** `€ {COSTO_ASSICURAZIONE:,}`\n"
+                f"🎗️ Ti è stato assegnato il ruolo <@&{ID_RUOLO_ASSICURATO}> e la polizza è registrata nel Forum Documenti."
+            ),
+            color=discord.Color.green(),
+            timestamp=discord.utils.utcnow()
+        )
+        await interaction.followup.send(embed=embed_conferma, ephemeral=True)
+        
 # ==========================================
 # 🏦 APERTURA CONTO BANCARIO (SCRITTURA DIRETTA)
 # ==========================================
@@ -790,9 +891,9 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, view=VistaContoBancario())
 
 # ==========================================
-# ❌ COMANDO /REVOCA CON ELIMINAZIONE FORUM DOCUMENTI
+# ❌ COMANDO /REVOCA COMPLETO (INCLUSA ASSICURAZIONE)
 # ==========================================
-@bot.tree.command(name="revoca", description="Revoca licenze, patenti, cittadinanza o status (rimuove ruoli e post dai forum)")
+@bot.tree.command(name="revoca", description="Revoca licenze, patenti, cittadinanza o status")
 @app_commands.describe(utente="L'utente a cui revocare il documento/licenza", tipo="Cosa vuoi revocare?")
 @app_commands.choices(tipo=[
     app_commands.Choice(name="🚗 Patente A (Moto)", value="patente_a"),
@@ -800,7 +901,10 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     app_commands.Choice(name="🚛 Patente C (Camion)", value="patente_c"),
     app_commands.Choice(name="🚌 Patente D (Autobus)", value="patente_d"),
     app_commands.Choice(name="🔫 Porto d'Armi", value="porto_darmi"),
+    app_commands.Choice(name="🛡️ Assicurazione Veicolo", value="assicurazione"),
     app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
+    app_commands.Choice(name="🏦 Conto Bancario / Documenti", value="documenti"),
+    app_commands.Choice(name="🛡️ Identificazione Staff", value="staff")
 ])
 async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
     await interaction.response.defer(ephemeral=True)
@@ -810,14 +914,14 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
         is_staff = any(role.id == ID_RUOLO_STAFF for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
         is_fdo = any(role.id == ID_RUOLO_FDO for role in interaction.user.roles)
         
-        licenze_fdo = ["patente_a", "patente_b", "patente_c", "patente_d", "porto_darmi"]
+        licenze_fdo = ["patente_a", "patente_b", "patente_c", "patente_d", "porto_darmi", "assicurazione"]
 
         if not is_staff and not is_fdo:
             await interaction.followup.send("❌ Non hai i permessi necessari per utilizzare questo comando!", ephemeral=True)
             return
 
         if is_fdo and not is_staff and tipo.value not in licenze_fdo:
-            await interaction.followup.send("⚠️ Come membro delle **FDO** puoi revocare solamente le **Patenti** e il **Porto d'Armi**!", ephemeral=True)
+            await interaction.followup.send("⚠️ Come membro delle **FDO** puoi revocare solamente Patenti, Porto d'Armi e Assicurazioni!", ephemeral=True)
             return
 
         user_id_str = str(utente.id)
@@ -826,7 +930,7 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
         licenze_data = data.setdefault("licenze_cittadini", {})
         user_licenze = licenze_data.setdefault(user_id_str, {
             "patente_a": False, "patente_b": False, "patente_c": False, "patente_d": False,
-            "porto_darmi": False, "cittadinanza": True
+            "porto_darmi": False, "cittadinanza": True, "assicurazione": False
         })
 
         messaggio = ""
@@ -857,6 +961,20 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
             if ruolo and ruolo in utente.roles:
                 try:
                     await utente.remove_roles(ruolo, reason="Porto d'armi revocato")
+                except Exception:
+                    pass
+
+        # --- REVOCA ASSICURAZIONE ---
+        elif tipo.value == "assicurazione":
+            user_licenze["assicurazione"] = False
+            modificato = True
+            messaggio = f"✅ **Assicurazione Veicolo** revocata con successo a {utente.mention}!"
+            forum_id_da_pulire = ID_FORUM_DOCUMENTI
+
+            ruolo = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
+            if ruolo and ruolo in utente.roles:
+                try:
+                    await utente.remove_roles(ruolo, reason="Assicurazione revocata")
                 except Exception:
                     pass
 
@@ -899,15 +1017,13 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                 except Exception:
                     pass
 
-        # 🗑️ CANCELLAZIONE AUTOMATICA POST NEL FORUM CORRISPONDENTE
+        # 🗑️ ELIMINAZIONE AUTOMATICA POST NEL FORUM
         if forum_id_da_pulire:
             try:
                 forum_channel = interaction.guild.get_channel(forum_id_da_pulire)
                 if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-                    # Cerca sia per nome utente, per ID Discord o per display name
                     search_keys = [utente.name.lower(), utente.display_name.lower(), str(utente.id)]
                     
-                    # Se era uno staffer, aggiunge anche l'username Roblox tra le chiavi
                     if tipo.value == "staff" and info_staff:
                         roblox_u = info_staff.get("roblox_user", "")
                         if roblox_u:
@@ -919,16 +1035,15 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
                         if any(key in thread_name_lower for key in search_keys if key):
                             await thread.delete()
                             post_eliminato = True
-                            messaggio += "\n🗑️ *Post nel forum dei documenti eliminato automaticamente.*"
+                            messaggio += "\n🗑️ *Post nel forum eliminato automaticamente.*"
                             break
 
-                    # Se non lo trova tra i thread attivi, controlla anche quelli archiviati
                     if not post_eliminato:
                         async for thread in forum_channel.archived_threads():
                             thread_name_lower = thread.name.lower()
                             if any(key in thread_name_lower for key in search_keys if key):
                                 await thread.delete()
-                                messaggio += "\n🗑️ *Post nel forum dei documenti eliminato automaticamente.*"
+                                messaggio += "\n🗑️ *Post nel forum eliminato automaticamente.*"
                                 break
             except Exception:
                 pass
