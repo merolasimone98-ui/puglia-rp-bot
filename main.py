@@ -254,7 +254,7 @@ class VistaApprovazioneDocumenti(discord.ui.View):
 # ==========================================
 class ModalCittadinanza(discord.ui.Modal, title="🇮🇹 Richiesta Cittadinanza Puglia RP"):
     nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. Player123", required=True, max_length=40)
     eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=3)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -298,7 +298,7 @@ class ModalCittadinanza(discord.ui.Modal, title="🇮🇹 Richiesta Cittadinanza
 # ==========================================
 class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
     nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. Player123", required=True, max_length=40)
     tipo_patente = discord.ui.TextInput(label="📜 Tipo Patente (A / B / C / D)", placeholder="Es. B", required=True, max_length=2)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -346,7 +346,7 @@ class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
 # ==========================================
 class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Puglia RP"):
     nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. S1M0N31902", required=True, max_length=40)
+    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. Player123", required=True, max_length=40)
     motivazione = discord.ui.TextInput(label="📝 Motivazione Richiesta", placeholder="Es. Difesa personale / Lavoro", required=True, style=discord.TextStyle.paragraph, max_length=300)
 
     async def on_submit(self, interaction: discord.Interaction):
