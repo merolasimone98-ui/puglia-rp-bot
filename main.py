@@ -127,39 +127,77 @@ ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
 # ==========================================
 # 🔘 VISTA APPROVAZIONE DOCUMENTI (PERSISTENTE)
 # ==========================================
+# ==========================================
+# 🔘 VISTA APPROVAZIONE DOCUMENTI (DINAMICA & CORRETTA)
+# ==========================================
 class VistaApprovazioneDocumenti(discord.ui.View):
     def __init__(self, user_id: str, nome_rp: str, roblox_user: str, tipo_doc: str = "Cittadinanza"):
         super().__init__(timeout=None)
         self.user_id = user_id
         self.nome_rp = nome_rp
         self.roblox_user = roblox_user
-        self.tipo_doc = tipo_doc
+        self.tipo_doc = tipo_doc  # Es: "Cittadinanza", "Patente A", "Patente B", "Porto d'Armi"
 
     @discord.ui.button(label="Accetta Documento", style=discord.ButtonStyle.success, custom_id="btn_accetta_documento")
     async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⚡ Risposta immediata a Discord per evitare il "non ha risposto in tempo"
         await interaction.response.defer()
 
         try:
             data = load_data()
             user_id_str = str(self.user_id)
-
-            # Salva la cittadinanza/documento nei dati
             licenze_data = data.setdefault("licenze_cittadini", {})
-            user_lic = licenze_data.setdefault(user_id_str, {})
-            user_lic["cittadinanza"] = True
+            user_lic = licenze_data.setdefault(user_id_str, {
+                "patente_a": False, "patente_b": False, "patente_c": False, "patente_d": False,
+                "porto_darmi": False, "cittadinanza": True
+            })
+
+            # Identifichiamo il tipo di documento da registrare e l'emoji corrispondente
+            tipo_upper = self.tipo_doc.upper()
+            emoji_doc = "📄"
+            ruolo_da_assegnare = None
+
+            if "CITTADINANZA" in tipo_upper:
+                user_lic["cittadinanza"] = True
+                emoji_doc = "🇮🇹"
+                if ID_RUOLO_CITTADINO != 0:
+                    ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+
+            elif "PORTO" in tipo_upper or "ARMI" in tipo_upper:
+                user_lic["porto_darmi"] = True
+                emoji_doc = "🔫"
+                if ID_RUOLO_PORTO_DARMI != 0:
+                    ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+
+            elif "PATENTE" in tipo_upper:
+                emoji_doc = "🚗"
+                # Identifica la lettera (A, B, C, D)
+                if "A" in tipo_upper:
+                    user_lic["patente_a"] = True
+                    role_id = RUOLI_PATENTI.get("patente_a")
+                elif "B" in tipo_upper:
+                    user_lic["patente_b"] = True
+                    role_id = RUOLI_PATENTI.get("patente_b")
+                elif "C" in tipo_upper:
+                    user_lic["patente_c"] = True
+                    role_id = RUOLI_PATENTI.get("patente_c")
+                elif "D" in tipo_upper:
+                    user_lic["patente_d"] = True
+                    role_id = RUOLI_PATENTI.get("patente_d")
+                else:
+                    role_id = None
+
+                if role_id:
+                    ruolo_da_assegnare = interaction.guild.get_role(role_id)
+
             save_data(data)
 
-            # Assegna il ruolo Cittadino all'utente se presente
-            if ID_RUOLO_CITTADINO != 0:
-                member = interaction.guild.get_member(int(self.user_id))
-                if member:
-                    ruolo = interaction.guild.get_role(ID_RUOLO_CITTADINO)
-                    if ruolo:
-                        try:
-                            await member.add_roles(ruolo, reason="Cittadinanza approvata")
-                        except Exception:
-                            pass
+            # Assegna il ruolo Discord all'utente se impostato
+            member = interaction.guild.get_member(int(self.user_id))
+            if member and ruolo_da_assegnare:
+                try:
+                    await member.add_roles(ruolo_da_assegnare, reason=f"Documento approvato: {self.tipo_doc}")
+                except Exception:
+                    pass
 
             # Aggiorna l'embed nel canale Accettazione Documenti
             embed = interaction.message.embeds[0]
@@ -172,22 +210,23 @@ class VistaApprovazioneDocumenti(discord.ui.View):
                 child.disabled = True
             await interaction.message.edit(embed=embed, view=self)
 
-            # 📌 CREA IL POST AUTOMATICO NEL FORUM DOCUMENTI CITTADINI
+            # 📌 CREA IL POST AUTOMATICO NEL FORUM DOCUMENTI CITTADINI (CON IL NOME CORRETTO)
             forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
             if forum_channel and isinstance(forum_channel, discord.ForumChannel):
                 embed_forum = discord.Embed(
-                    title=f"📜 DOCUMENTO CITTADINO — {self.nome_rp}",
+                    title=f"{emoji_doc} DOCUMENTO {self.tipo_doc.upper()} — {self.nome_rp}",
                     description=(
                         f"👤 **Cittadino:** <@{self.user_id}>\n"
-                        f"📄 **Nome RP:** `{self.nome_rp}`\n"
-                        f"🎮 **Account Roblox:** `{self.roblox_user}`\n\n"
+                        f"📜 **Nome RP:** `{self.nome_rp}`\n"
+                        f"🎮 **Account Roblox:** `{self.roblox_user}`\n"
+                        f"📄 **Tipo Documento:** `{self.tipo_doc}`\n\n"
                         "✅ *Documento ufficiale registrato nel sistema di Puglia RP.*"
                     ),
                     color=discord.Color.green(),
                     timestamp=discord.utils.utcnow()
                 )
                 await forum_channel.create_thread(
-                    name=f"📃CITTADINANZA丨{self.nome_rp} ({self.roblox_user})",
+                    name=f"{emoji_doc} {self.tipo_doc.upper()} | {self.nome_rp} ({self.roblox_user})",
                     embed=embed_forum
                 )
 
@@ -209,7 +248,7 @@ class VistaApprovazioneDocumenti(discord.ui.View):
             await interaction.message.edit(embed=embed, view=self)
         except Exception as e:
             await interaction.followup.send(f"❌ Errore durante il rifiuto: `{e}`", ephemeral=True)
-
+            
 # ==========================================
 # 📝 MODALE RICHIESTA CITTADINANZA
 # ==========================================
