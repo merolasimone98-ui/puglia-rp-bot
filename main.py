@@ -445,135 +445,227 @@ async def pannello_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=VistaPannelloDocumenti())
 
 # ==========================================
-# 💰 GESTIONE ECONOMIA UNIFICATA & COMPATIBILE
+# 💰 GESTIONE ECONOMIA UNIFICATA
 # ==========================================
 
 def get_user_eco(user_id_str: str):
     data = load_data()
-    
-    # 1. Recupera o crea la struttura dell'utente
     eco_all = data.setdefault("economia", {})
-    eco_user = eco_all.setdefault(user_id_str, {})
-
-    # 2. Garantisce che le chiavi essenziali esistano
-    if "cash" not in eco_user:
-        eco_user["cash"] = 0
-    if "bank" not in eco_user:
-        eco_user["bank"] = 0
+    eco_user = eco_all.setdefault(user_id_str, {
+        "cash": 0,
+        "bank": 0,
+        "has_account": False
+    })
+    
+    if "cash" not in eco_user: eco_user["cash"] = 0
+    if "bank" not in eco_user: eco_user["bank"] = 0
     if "has_account" not in eco_user:
-        # Se ha già del saldo in banca, imposta automatico l'account attivo
         eco_user["has_account"] = True if eco_user.get("bank", 0) > 0 else False
-
-    data["economia"][user_id_str] = eco_user
+        
     save_data(data)
     return eco_user
-
 
 def update_user_eco(user_id_str: str, eco_data: dict):
     data = load_data()
     data.setdefault("economia", {})[user_id_str] = eco_data
     save_data(data)
 
-# ==========================================
-# 🛡️ SISTEMA ASSICURAZIONE VEICOLI
-# ==========================================
-COSTO_ASSICURAZIONE = 500  # Costo in Euro per la polizza
 
-class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione Veicolo"):
-    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    veicolo = discord.ui.TextInput(label="🚗 Modello Veicolo e Targa", placeholder="Es. Fiat Punto - AA123BB", required=True, max_length=60)
+# ------------------------------------------
+# 💵 COMANDI CITTADINI
+# ------------------------------------------
 
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        user_id_str = str(interaction.user.id)
-        
-        # 1. Controllo Saldo e Scalo Denaro
-        eco = get_user_eco(user_id_str)
-        cash = eco.get("cash", 0)
-        bank = eco.get("bank", 0)
+# 🤝 /paga (Scambio di contanti a mani)
+@bot.tree.command(name="paga", description="Paga un altro cittadino in contanti (mano a mano)")
+@app_commands.describe(utente="Il cittadino a cui consegnare i contanti", importo="Quantità di denaro in euro")
+async def paga_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int):
+    await interaction.response.defer(ephemeral=True)
 
-        if cash >= COSTO_ASSICURAZIONE:
-            eco["cash"] -= COSTO_ASSICURAZIONE
-        elif bank >= COSTO_ASSICURAZIONE:
-            eco["bank"] -= COSTO_ASSICURAZIONE
-        else:
-            await interaction.followup.send(
-                f"❌ **Fondi insufficienti!** L'assicurazione costa **€ {COSTO_ASSICURAZIONE:,}**. "
-                f"Hai solo € {cash:,} in contanti e € {bank:,} in banca.", 
-                ephemeral=True
-            )
-            return
+    if utente.id == interaction.user.id:
+        await interaction.followup.send("❌ Non puoi pagare te stesso!", ephemeral=True)
+        return
 
-        update_user_eco(user_id_str, eco)
+    if importo <= 0:
+        await interaction.followup.send("❌ Inserisci un importo valido maggiore di zero!", ephemeral=True)
+        return
 
-        # 2. Salva lo stato nei dati
-        data = load_data()
-        licenze_data = data.setdefault("licenze_cittadini", {})
-        user_lic = licenze_data.setdefault(user_id_str, {})
-        user_lic["assicurazione"] = True
-        save_data(data)
+    sender_id = str(interaction.user.id)
+    receiver_id = str(utente.id)
 
-        # 3. Assegna il Ruolo Discord Assicurato
-        if ID_RUOLO_ASSICURATO != 0:
-            ruolo = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
-            if ruolo:
-                try:
-                    await interaction.user.add_roles(ruolo, reason="Assicurazione veicolo stipulata")
-                except Exception:
-                    pass
+    sender_eco = get_user_eco(sender_id)
+    receiver_eco = get_user_eco(receiver_id)
 
-        # 4. Invia Log nel canale Accettazione Documenti
-        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
-        if canale_log:
-            embed_log = discord.Embed(
-                title="🛡️ NUOVA ASSICURAZIONE STIPULATA",
-                description=(
-                    f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
-                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                    f"🚘 **Veicolo & Targa:** `{self.veicolo.value.strip()}`\n"
-                    f"💰 **Costo Pagato:** `€ {COSTO_ASSICURAZIONE:,}`"
-                ),
-                color=discord.Color.blue(),
-                timestamp=discord.utils.utcnow()
-            )
-            embed_log.set_footer(text="Puglia RP • Polizza Assicurativa Attiva")
-            await canale_log.send(embed=embed_log)
+    if sender_eco.get("cash", 0) < importo:
+        await interaction.followup.send(f"❌ Non hai abbastanza contanti in portafoglio! Possiedi solo **€ {sender_eco.get('cash', 0):,}**.", ephemeral=True)
+        return
 
-        # 5. Crea il Thread nel Forum Documenti
-        forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-            embed_forum = discord.Embed(
-                title=f"🛡️ ASSICURAZIONE VEICOLO — {self.nome_rp.value.strip()}",
-                description=(
-                    f"👤 **Intestatario:** {interaction.user.mention}\n"
-                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                    f"🚘 **Veicolo / Targa:** `{self.veicolo.value.strip()}`\n"
-                    f"💳 **Stato Polizza:** `ATTIVA ✅`\n"
-                    f"💰 **Importo Saldato:** `€ {COSTO_ASSICURAZIONE:,}`"
-                ),
-                color=discord.Color.blue(),
-                timestamp=discord.utils.utcnow()
-            )
-            try:
-                await forum_channel.create_thread(
-                    name=f"🛡️ ASSICURAZIONE | {self.nome_rp.value.strip()} ({self.veicolo.value.strip()})",
-                    embed=embed_forum
-                )
-            except Exception:
-                pass
+    sender_eco["cash"] -= importo
+    receiver_eco["cash"] += importo
 
-        # 6. Conferma all'utente
-        embed_conferma = discord.Embed(
-            title="🛡️ ASSICURAZIONE ATTIVATA CON SUCCESSO!",
-            description=(
-                f"Hai stipulato l'assicurazione per il veicolo **{self.veicolo.value.strip()}**.\n\n"
-                f"💸 **Costo detratto:** `€ {COSTO_ASSICURAZIONE:,}`\n"
-                f"🎗️ Ti è stato assegnato il ruolo <@&{ID_RUOLO_ASSICURATO}> e la polizza è registrata nel Forum Documenti."
-            ),
-            color=discord.Color.green(),
-            timestamp=discord.utils.utcnow()
-        )
-        await interaction.followup.send(embed=embed_conferma, ephemeral=True)
+    update_user_eco(sender_id, sender_eco)
+    update_user_eco(receiver_id, receiver_eco)
+
+    await interaction.followup.send(f"🤝 Hai consegnato **€ {importo:,}** in contanti a {utente.mention}!", ephemeral=True)
+
+
+# 🏦 /bonifico (Trasferimento da conto bancario a conto bancario)
+@bot.tree.command(name="bonifico", description="Effettua un bonifico bancario ad un altro cittadino")
+@app_commands.describe(utente="Il destinatario del bonifico", importo="Quantità di euro da inviare")
+async def bonifico_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int):
+    await interaction.response.defer(ephemeral=True)
+
+    if utente.id == interaction.user.id:
+        await interaction.followup.send("❌ Non puoi inviare un bonifico a te stesso!", ephemeral=True)
+        return
+
+    if importo <= 0:
+        await interaction.followup.send("❌ Inserisci un importo valido maggiore di zero!", ephemeral=True)
+        return
+
+    sender_id = str(interaction.user.id)
+    receiver_id = str(utente.id)
+
+    sender_eco = get_user_eco(sender_id)
+    receiver_eco = get_user_eco(receiver_id)
+
+    if not sender_eco.get("has_account"):
+        await interaction.followup.send("❌ Non possiedi un conto bancario attivo! Aprilo prima allo sportello bancario.", ephemeral=True)
+        return
+
+    if not receiver_eco.get("has_account"):
+        await interaction.followup.send(f"❌ {utente.mention} non possiede un conto bancario attivo!", ephemeral=True)
+        return
+
+    if sender_eco.get("bank", 0) < importo:
+        await interaction.followup.send(f"❌ Saldo bancario insufficiente! Sul tuo conto hai **€ {sender_eco.get('bank', 0):,}**.", ephemeral=True)
+        return
+
+    sender_eco["bank"] -= importo
+    receiver_eco["bank"] += importo
+
+    update_user_eco(sender_id, sender_eco)
+    update_user_eco(receiver_id, receiver_eco)
+
+    await interaction.followup.send(f"🏦 Bonifico di **€ {importo:,}** inviato con successo a {utente.mention}!", ephemeral=True)
+
+
+# 🏦 /deposita (Mettere contanti in banca)
+@bot.tree.command(name="deposita", description="Deposita contanti sul tuo conto bancario")
+@app_commands.describe(importo="L'importo in euro da depositare")
+async def deposita_cmd(interaction: discord.Interaction, importo: int):
+    await interaction.response.defer(ephemeral=True)
+    
+    if importo <= 0:
+        await interaction.followup.send("❌ Inserisci un importo valido!", ephemeral=True)
+        return
+
+    user_id_str = str(interaction.user.id)
+    eco = get_user_eco(user_id_str)
+
+    if not eco.get("has_account"):
+        await interaction.followup.send("❌ Non possiedi un conto bancario attivo!", ephemeral=True)
+        return
+
+    if eco.get("cash", 0) < importo:
+        await interaction.followup.send(f"❌ Non hai abbastanza contanti! Hai solo **€ {eco.get('cash', 0):,}**.", ephemeral=True)
+        return
+
+    eco["cash"] -= importo
+    eco["bank"] += importo
+    update_user_eco(user_id_str, eco)
+
+    await interaction.followup.send(f"✅ Hai depositato **€ {importo:,}** sul tuo conto bancario!", ephemeral=True)
+
+
+# 🏧 /preleva (Prelevare soldi dalla banca in contanti)
+@bot.tree.command(name="preleva", description="Preleva denaro contante dal tuo conto bancario")
+@app_commands.describe(importo="L'importo in euro da prelevare")
+async def preleva_cmd(interaction: discord.Interaction, importo: int):
+    await interaction.response.defer(ephemeral=True)
+
+    if importo <= 0:
+        await interaction.followup.send("❌ Inserisci un importo valido!", ephemeral=True)
+        return
+
+    user_id_str = str(interaction.user.id)
+    eco = get_user_eco(user_id_str)
+
+    if not eco.get("has_account"):
+        await interaction.followup.send("❌ Non possiedi un conto bancario attivo!", ephemeral=True)
+        return
+
+    if eco.get("bank", 0) < importo:
+        await interaction.followup.send(f"❌ Saldo bancario insufficiente! Hai solo **€ {eco.get('bank', 0):,}** in banca.", ephemeral=True)
+        return
+
+    eco["bank"] -= importo
+    eco["cash"] += importo
+    update_user_eco(user_id_str, eco)
+
+    await interaction.followup.send(f"💸 Hai prelevato **€ {importo:,}** dal tuo conto bancario!", ephemeral=True)
+
+
+# ------------------------------------------
+# 🛠️ COMANDI ADMIN / STAFF
+# ------------------------------------------
+
+# ➕ /aggiungi-soldi
+@bot.tree.command(name="aggiungi-soldi", description="Aggiungi soldi ad un utente (Solo Admin)")
+@app_commands.describe(utente="L'utente a cui aggiungere denaro", tipo="Dove aggiungere il denaro?", importo="Quantità in euro")
+@app_commands.choices(tipo=[
+    app_commands.Choice(name="💵 Contanti (Portafoglio)", value="cash"),
+    app_commands.Choice(name="🏦 Conto Bancario", value="bank")
+])
+@app_commands.checks.has_permissions(administrator=True)
+async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str], importo: int):
+    await interaction.response.defer(ephemeral=True)
+
+    if importo <= 0:
+        await interaction.followup.send("❌ L'importo deve essere maggiore di zero!", ephemeral=True)
+        return
+
+    user_id_str = str(utente.id)
+    eco = get_user_eco(user_id_str)
+
+    if tipo.value == "bank":
+        eco["has_account"] = True  # Se gli admin aggiungono soldi in banca, attiva automaticamente il conto
+        eco["bank"] += importo
+        destinazione = "conto bancario"
+    else:
+        eco["cash"] += importo
+        destinazione = "portafoglio (contanti)"
+
+    update_user_eco(user_id_str, eco)
+    await interaction.followup.send(f"✅ Aggiunti **€ {importo:,}** sul {destinazione} di {utente.mention}!", ephemeral=True)
+
+
+# ➖ /rimuovi-soldi
+@bot.tree.command(name="rimuovi-soldi", description="Rimuovi soldi ad un utente (Solo Admin)")
+@app_commands.describe(utente="L'utente a cui togliere denaro", tipo="Da dove togliere il denaro?", importo="Quantità in euro")
+@app_commands.choices(tipo=[
+    app_commands.Choice(name="💵 Contanti (Portafoglio)", value="cash"),
+    app_commands.Choice(name="🏦 Conto Bancario", value="bank")
+])
+@app_commands.checks.has_permissions(administrator=True)
+async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str], importo: int):
+    await interaction.response.defer(ephemeral=True)
+
+    if importo <= 0:
+        await interaction.followup.send("❌ L'importo deve essere maggiore di zero!", ephemeral=True)
+        return
+
+    user_id_str = str(utente.id)
+    eco = get_user_eco(user_id_str)
+
+    if tipo.value == "bank":
+        eco["bank"] = max(0, eco.get("bank", 0) - importo)
+        destinazione = "conto bancario"
+    else:
+        eco["cash"] = max(0, eco.get("cash", 0) - importo)
+        destinazione = "portafoglio (contanti)"
+
+    update_user_eco(user_id_str, eco)
+    await interaction.followup.send(f"✅ Rimosse **€ {importo:,}** dal {destinazione} di {utente.mention}!", ephemeral=True)
         
 # ==========================================
 # 🏦 APERTURA CONTO BANCARIO (SCRITTURA DIRETTA)
