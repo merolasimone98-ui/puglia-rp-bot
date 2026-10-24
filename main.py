@@ -187,7 +187,7 @@ class VistaApprovazioneDocumenti(discord.ui.View):
                     timestamp=discord.utils.utcnow()
                 )
                 await forum_channel.create_thread(
-                    name=f"🇮🇹丨{self.nome_rp} ({self.roblox_user})",
+                    name=f"📃CITTADINANZA丨{self.nome_rp} ({self.roblox_user})",
                     embed=embed_forum
                 )
 
