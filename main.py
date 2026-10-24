@@ -828,60 +828,53 @@ async def task_reset_settimanale():
 # 💳 MODULO: ECONOMIA, BANCA & MULTE
 # ==========================================
 
+# ==========================================
+# 🏦 MODALE APERTURA CONTO BANCARIO (FIXATO)
+# ==========================================
 class ModalApriConto(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
-    nome_cognome = discord.ui.TextInput(label="📜 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
+    nome_cognome = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
     eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         user_id_str = str(interaction.user.id)
         data = load_data()
-        cittadinanze = data.get("cittadinanze", {})
-        rp_names = data.get("rp_names", {})
 
-        # 1. Controlliamo se l'utente ha la Cittadinanza registrata
-        if user_id_str not in cittadinanze and user_id_str not in rp_names:
+        # 1. Recupero dati licenze e cittadinanza
+        licenze_data = data.get("licenze_cittadini", {}).get(user_id_str, {})
+        has_cittadinanza = licenze_data.get("cittadinanza", False)
+
+        # Se non è salvata in licenze_cittadini, controlliamo anche le vecchie chiavi per compatibilità
+        if not has_cittadinanza:
+            cittadinanze_old = data.get("cittadinanze", {})
+            has_cittadinanza = user_id_str in cittadinanze_old
+
+        if not has_cittadinanza:
             await interaction.followup.send(
-                "🧙‍♂️ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo nel canale apposito "
-                f"<#1562891119824601258> per ottenere la **Cittadinanza Ufficiale** prima di poter aprire un conto bancario 📜.",
+                "❌ **Non hai ancora la Cittadinanza!** Devi prima compilare il modulo nel canale apposito "
+                f"<#{ID_CANALE_LOG_DOCUMENTI}> per ottenere la **Cittadinanza Ufficiale** prima di poter aprire un conto bancario 📜.",
                 ephemeral=True
             )
             return
 
-        # 2. Recuperiamo il Nome RP registrato ufficialmente
-        if user_id_str in cittadinanze:
-            nome_rp_registrato = cittadinanze[user_id_str].get("nome_rp", "").strip()
-        else:
-            nome_rp_registrato = rp_names.get(user_id_str, "").strip()
-
-        # 3. Controllo Corrispondenza Nome RP
-        nome_inserito = self.nome_cognome.value.strip()
-        if nome_inserito.lower() != nome_rp_registrato.lower():
-            await interaction.followup.send(
-                "❌ **Nome RP Errato o non corrispondente!**\n"
-                f"Il nome inserito (`{nome_inserito}`) non corrisponde a quello della tua Cittadinanza Ufficiale (`{nome_rp_registrato}`).\n"
-                "Inserisci il Nome e Cognome RP esatto!",
-                ephemeral=True
-            )
-            return
-
-        # 4. Controllo se possiede già il conto bancario
+        # 2. Controllo se possiede già un conto attivo
         eco = get_user_eco(user_id_str)
         if eco.get("has_account"):
-            await interaction.followup.send("❌ Possiedi già un conto corrente attivo!", ephemeral=True)
+            await interaction.followup.send("❌ **Possiedi già un conto corrente attivo!**", ephemeral=True)
             return
 
-        # 5. Attivazione Conto + Accredito Bonus
-        eco["bank"] += 1000
+        # 3. Attivazione Conto + Accredito Bonus Benvenuto (€1.000)
+        eco["bank"] = eco.get("bank", 0) + 1000
         eco["has_account"] = True
         update_user_eco(user_id_str, eco)
 
         embed = discord.Embed(
-            title="🏦 CONTO BANCARIO APERTO CON SUCCESSO! 💰",
-            description=f"Congratulazioni **{nome_rp_registrato}** ({self.eta_rp.value} anni)!\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati sul tuo nuovo conto.",
+            title="🏦 CONTO BANCARIO APERTO CON SUCCESSO! 🎉",
+            description=f"Congratulazioni **{self.nome_cognome.value.strip()}** ({self.eta_rp.value.strip()} anni)!\n\n🎁 **Bonus Benvenuto:** `€ 1.000` accreditati sul tuo nuovo conto.",
             color=discord.Color.from_rgb(46, 204, 113),
             timestamp=discord.utils.utcnow()
         )
+
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
@@ -933,8 +926,6 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     app_commands.Choice(name="🚌 Patente D (Autobus)", value="patente_d"),
     app_commands.Choice(name="🔫 Porto d'Armi", value="porto_darmi"),
     app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
-    app_commands.Choice(name="🏦 Conto Bancario / Documenti", value="documenti"),
-    app_commands.Choice(name="🛡️ Identificazione Staff", value="staff")
 ])
 async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str]):
     await interaction.response.defer(ephemeral=True)
