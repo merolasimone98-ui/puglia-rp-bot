@@ -401,24 +401,29 @@ async def pannello_cmd(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=VistaPannelloDocumenti())
 
 # ==========================================
-# 💰 GESTIONE ECONOMIA COMPATIBILE E INTEGRATA
+# 💰 GESTIONE ECONOMIA UNIFICATA & COMPATIBILE
 # ==========================================
 
 def get_user_eco(user_id_str: str):
     data = load_data()
-    eco = data.setdefault("economia", {}).setdefault(user_id_str, {
-        "cash": 0,
-        "bank": 0,
-        "has_account": False
-    })
-    # Assicuriamo la presenza delle chiavi base
-    if "has_account" not in eco:
-        eco["has_account"] = False
-    if "cash" not in eco:
-        eco["cash"] = 0
-        
+    
+    # 1. Recupera o crea la struttura dell'utente
+    eco_all = data.setdefault("economia", {})
+    eco_user = eco_all.setdefault(user_id_str, {})
+
+    # 2. Garantisce che le chiavi essenziali esistano
+    if "cash" not in eco_user:
+        eco_user["cash"] = 0
+    if "bank" not in eco_user:
+        eco_user["bank"] = 0
+    if "has_account" not in eco_user:
+        # Se ha già del saldo in banca, imposta automatico l'account attivo
+        eco_user["has_account"] = True if eco_user.get("bank", 0) > 0 else False
+
+    data["economia"][user_id_str] = eco_user
     save_data(data)
-    return eco
+    return eco_user
+
 
 def update_user_eco(user_id_str: str, eco_data: dict):
     data = load_data()
@@ -426,18 +431,69 @@ def update_user_eco(user_id_str: str, eco_data: dict):
     save_data(data)
 
 
+# ==========================================
+# 🏦 APERTURA CONTO BANCARIO (SCRITTURA DIRETTA)
+# ==========================================
+class ModalApriContoIstantaneo(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
+    nome_cognome = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
+    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=10)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        user_id_str = str(interaction.user.id)
+        
+        # Carichiamo ed aggiorniamo direttamente l'economia
+        eco = get_user_eco(user_id_str)
+
+        if eco.get("has_account") and eco.get("bank", 0) > 0:
+            await interaction.followup.send("❌ **Possiedi già un conto corrente attivo su Puglia RP!**", ephemeral=True)
+            return
+
+        # Impostiamo conto attivo + Bonus 1.000€
+        eco["has_account"] = True
+        eco["bank"] = eco.get("bank", 0) + 1000
+        update_user_eco(user_id_str, eco)
+
+        # Salva anche il nome RP
+        data = load_data()
+        data.setdefault("rp_names", {})[user_id_str] = self.nome_cognome.value.strip()
+        save_data(data)
+
+        embed = discord.Embed(
+            title="🎉 CONTO BANCARIO APERTO CON SUCCESSO!",
+            description=(
+                f"Benvenuto nella gestione finanziaria di **Puglia RP**, **{self.nome_cognome.value.strip()}**!\n\n"
+                f"💳 **Stato Conto:** `ATTIVO`\n"
+                f"👤 **Intestatario RP:** `{self.nome_cognome.value.strip()}` (`{self.eta_rp.value.strip()} anni`)\n"
+                f"💰 **Bonus di Benvenuto:** `€ 1.000` accreditati sul tuo conto corrente!"
+            ),
+            color=discord.Color.from_rgb(46, 204, 113),
+            timestamp=discord.utils.utcnow()
+        )
+        embed.set_footer(text="Banca di Puglia RP • Servizi Finanziari Digitali")
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+# ==========================================
 # 💳 COMANDO /PORTAFOGLIO
+# ==========================================
 @bot.tree.command(name="portafoglio", description="Mostra il tuo estratto conto bancario e i contanti")
 async def portafoglio_cmd(interaction: discord.Interaction, utente: discord.Member = None):
     await interaction.response.defer(ephemeral=True)
     target = utente or interaction.user
     user_id_str = str(target.id)
     
+    # Legge esattamente lo stesso dizionario
     eco = get_user_eco(user_id_str)
     
     cash = eco.get("cash", 0)
     bank = eco.get("bank", 0)
     has_account = eco.get("has_account", False)
+
+    # Se ha soldi in banca, mostriamo lo stato attivo a prescindere
+    if bank > 0:
+        has_account = True
 
     stato_conto = f"**€ {bank:,}**" if has_account else "**Non Posseduto ❌**"
 
@@ -453,142 +509,6 @@ async def portafoglio_cmd(interaction: discord.Interaction, utente: discord.Memb
         embed.set_thumbnail(url=target.display_avatar.url)
 
     await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-# 🏦 COMANDO /DEPOSITA
-@bot.tree.command(name="deposita", description="Deposita contanti sul tuo conto bancario")
-@app_commands.describe(importo="L'importo in euro da depositare")
-async def deposita_cmd(interaction: discord.Interaction, importo: int):
-    await interaction.response.defer(ephemeral=True)
-    
-    if importo <= 0:
-        await interaction.followup.send("❌ Inserisci un importo valido maggiore di zero!", ephemeral=True)
-        return
-
-    user_id_str = str(interaction.user.id)
-    eco = get_user_eco(user_id_str)
-
-    if not eco.get("has_account"):
-        await interaction.followup.send("❌ Non possiedi un conto bancario attivo! Aprilo prima al bancomat.", ephemeral=True)
-        return
-
-    if eco.get("cash", 0) < importo:
-        await interaction.followup.send(f"❌ Non hai abbastanza contanti! In portafoglio hai solo **€ {eco.get('cash', 0):,}**.", ephemeral=True)
-        return
-
-    eco["cash"] -= importo
-    eco["bank"] += importo
-    update_user_eco(user_id_str, eco)
-
-    await interaction.followup.send(f"✅ Hai depositato **€ {importo:,}** sul tuo conto bancario!", ephemeral=True)
-
-
-# 🏧 COMANDO /PRELEVA
-@bot.tree.command(name="preleva", description="Preleva denaro dal tuo conto bancario")
-@app_commands.describe(importo="L'importo in euro da prelevare")
-async def preleva_cmd(interaction: discord.Interaction, importo: int):
-    await interaction.response.defer(ephemeral=True)
-
-    if importo <= 0:
-        await interaction.followup.send("❌ Inserisci un importo valido maggiore di zero!", ephemeral=True)
-        return
-
-    user_id_str = str(interaction.user.id)
-    eco = get_user_eco(user_id_str)
-
-    if not eco.get("has_account"):
-        await interaction.followup.send("❌ Non possiedi un conto bancario attivo!", ephemeral=True)
-        return
-
-    if eco.get("bank", 0) < importo:
-        await interaction.followup.send(f"❌ Saldo bancario insufficiente! Sul conto hai **€ {eco.get('bank', 0):,}**.", ephemeral=True)
-        return
-
-    eco["bank"] -= importo
-    eco["cash"] += importo
-    update_user_eco(user_id_str, eco)
-
-    await interaction.followup.send(f"💸 Hai prelevato **€ {importo:,}** dal tuo conto bancario!", ephemeral=True)
-
-
-# 🤝 COMANDO /PAGA
-@bot.tree.command(name="paga", description="Trasferisci denaro contante ad un altro utente")
-@app_commands.describe(utente="L'utente a cui dare i soldi", importo="L'importo da trasferire")
-async def paga_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int):
-    await interaction.response.defer(ephemeral=True)
-
-    if utente.id == interaction.user.id:
-        await interaction.followup.send("❌ Non puoi pagare te stesso!", ephemeral=True)
-        return
-
-    if importo <= 0:
-        await interaction.followup.send("❌ Inserisci un importo valido!", ephemeral=True)
-        return
-
-    sender_id = str(interaction.user.id)
-    receiver_id = str(utente.id)
-
-    sender_eco = get_user_eco(sender_id)
-    receiver_eco = get_user_eco(receiver_id)
-
-    if sender_eco.get("cash", 0) < importo:
-        await interaction.followup.send(f"❌ Non hai abbastanza contanti! Possiedi **€ {sender_eco.get('cash', 0):,}**.", ephemeral=True)
-        return
-
-    sender_eco["cash"] -= importo
-    receiver_eco["cash"] += importo
-
-    update_user_eco(sender_id, sender_eco)
-    update_user_eco(receiver_id, receiver_eco)
-
-    await interaction.followup.send(f"🤝 Hai dato **€ {importo:,}** in contanti a {utente.mention}!", ephemeral=True)
-
-
-# 🛠️ COMANDO /ADMIN-SOLDI (Solo Admin)
-@bot.tree.command(name="admin-soldi", description="Aggiungi o rimuovi soldi ad un utente (Solo Admin)")
-@app_commands.describe(utente="L'utente a cui gestire i soldi", modalita="Aggiungi o Rimuovi", tipo="Contanti o Banca", importo="Quantità di euro")
-@app_commands.choices(
-    modalita=[
-        app_commands.Choice(name="➕ Aggiungi", value="add"),
-        app_commands.Choice(name="➖ Rimuovi", value="remove")
-    ],
-    tipo=[
-        app_commands.Choice(name="💵 Contanti", value="cash"),
-        app_commands.Choice(name="🏦 Banca", value="bank")
-    ]
-)
-@app_commands.checks.has_permissions(administrator=True)
-async def admin_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, modalita: app_commands.Choice[str], tipo: app_commands.Choice[str], importo: int):
-    await interaction.response.defer(ephemeral=True)
-
-    if importo <= 0:
-        await interaction.followup.send("❌ L'importo deve essere maggiore di zero!", ephemeral=True)
-        return
-
-    user_id_str = str(utente.id)
-    eco = get_user_eco(user_id_str)
-
-    if tipo.value == "bank" and not eco.get("has_account") and modalita.value == "add":
-        eco["has_account"] = True # Attiva il conto se gli admin aggiungono fondi in banca
-
-    if modalita.value == "add":
-        eco[tipo.value] += importo
-        msg = f"✅ Aggiunti **€ {importo:,}** ({tipo.name}) a {utente.mention}."
-    else:
-        eco[tipo.value] = max(0, eco[tipo.value] - importo)
-        msg = f"✅ Rimosse **€ {importo:,}** ({tipo.name}) a {utente.mention}."
-
-    update_user_eco(user_id_str, eco)
-    await interaction.followup.send(msg, ephemeral=True)
-
-# ==========================================
-# 🛠️ GESTIONE SERVIZIO E LEADERBOARD STAFF
-# ==========================================
-
-# Struttura temporanea in memoria per il tempo attivo
-# staff_turni = { user_id: { "inizio": datetime, "pausa_inizio": datetime, "stato": "attivo"/"in_pausa" } }
-staff_turni = {}
-
 
 class VistaServizioStaff(discord.ui.View):
     def __init__(self):
@@ -792,58 +712,6 @@ async def task_reset_settimanale():
 # ==========================================
 # 🏦 MODULO CONTO BANCARIO DIRECT (APERTURA ISTANTANEA)
 # ==========================================
-
-# 1. Modale compilato dall'utente
-class ModalApriContoIstantaneo(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
-    nome_cognome = discord.ui.TextInput(
-        label="👤 Nome e Cognome RP", 
-        placeholder="Es. Mario Rossi", 
-        required=True, 
-        max_length=40
-    )
-    eta_rp = discord.ui.TextInput(
-        label="🎂 Età RP", 
-        placeholder="Es. 25", 
-        required=True, 
-        max_length=10
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        user_id_str = str(interaction.user.id)
-        data = load_data()
-
-        # Controlliamo se ha già un conto bancario attivo
-        eco = get_user_eco(user_id_str)
-        if eco.get("has_account"):
-            await interaction.followup.send("❌ **Possiedi già un conto corrente attivo su Puglia RP!**", ephemeral=True)
-            return
-
-        # Attivazione immediata + accredito bonus benvenuto € 1.000
-        eco["bank"] = eco.get("bank", 0) + 1000
-        eco["has_account"] = True
-        update_user_eco(user_id_str, eco)
-
-        # Registriamo il nome RP nei dati dell'utente
-        rp_names = data.setdefault("rp_names", {})
-        rp_names[user_id_str] = self.nome_cognome.value.strip()
-        save_data(data)
-
-        # Embed di conferma istantaneo all'utente
-        embed = discord.Embed(
-            title="🎉 CONTO BANCARIO APERTO CON SUCCESSO!",
-            description=(
-                f"Benvenuto nella gestione finanziaria di **Puglia RP**, **{self.nome_cognome.value.strip()}**!\n\n"
-                f"💳 **Stato Conto:** `ATTIVO`\n"
-                f"👤 **Intestatario RP:** `{self.nome_cognome.value.strip()}` (`{self.eta_rp.value.strip()} anni`)\n"
-                f"💰 **Bonus di Benvenuto:** `€ 1.000` accreditati sul tuo conto corrente!"
-            ),
-            color=discord.Color.from_rgb(46, 204, 113),
-            timestamp=discord.utils.utcnow()
-        )
-        embed.set_footer(text="Banca di Puglia RP • Servizi Finanziari Digitali")
-
-        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 # 2. Vista del Pannello con il Pulsante "Apri Conto Bancario"
