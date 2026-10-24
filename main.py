@@ -1662,6 +1662,68 @@ async def setup_recensioni_cmd(interaction: discord.Interaction):
     await interaction.followup.send(f"✅ **Embed informativo inviato con successo in** <#1563156712679145502>!", ephemeral=True)
 
 # ==========================================
+# ❌ GESTIONE RIFIUTO DOCUMENTO CON DM SICURO
+# ==========================================
+
+# Esempio all'interno dell'on_submit del Modale di Rifiuto o comando di Rifiuto:
+async def notifica_rifiuto(interaction: discord.Interaction, utente: discord.Member, tipo_documento: str, motivazione: str):
+    dm_inviato = False
+
+    # 1. Creiamo l'Embed per l'utente
+    embed_dm = discord.Embed(
+        title="❌ DOCUMENTO RIFIUTATO — PUGLIA RP",
+        description=(
+            f"Ciao {utente.mention}, la tua richiesta per **{tipo_documento}** è stata **RIFIUTATA**.\n\n"
+            f"📝 **Motivazione:** `{motivazione}`\n\n"
+            f"⏳ Potrai riprovare ad inviare la richiesta tra **10 minuti**."
+        ),
+        color=discord.Color.red(),
+        timestamp=discord.utils.utcnow()
+    )
+    embed_dm.set_footer(text="Puglia RP • Servizio Anagrafe e Documenti")
+
+    # 2. Tentativo di invio in Messaggio Privato (DM)
+    try:
+        await utente.send(embed=embed_dm)
+        dm_inviato = True
+    except discord.Forbidden:
+        # L'utente ha i DM chiusi o ha bloccato i bot
+        dm_inviato = False
+    except Exception:
+        dm_inviato = False
+
+    # 3. Risposta allo Staff/FDO che ha eseguito il rifiuto
+    if dm_inviato:
+        await interaction.followup.send(
+            f"✅ Documento rifiutato a {utente.mention}.\n📩 **Messaggio inviato con successo nei suoi DM!**", 
+            ephemeral=True
+        )
+    else:
+        # Se i DM sono chiusi, avvisa lo staff
+        await interaction.followup.send(
+            f"⚠️ Documento rifiutato a {utente.mention}.\n"
+            f"❌ **Impossibile inviare il DM:** L'utente ha i Messaggi Diretti disattivati nelle impostazioni di privacy di Discord!", 
+            ephemeral=True
+        )
+
+    # 4. Log nel Canale dei Log Documenti
+    canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+    if canale_log:
+        embed_log = discord.Embed(
+            title="❌ DOCUMENTO RIFIUTATO",
+            description=(
+                f"👤 **Utente:** {utente.mention} (`{utente.id}`)\n"
+                f"📄 **Tipo Documento:** `{tipo_documento}`\n"
+                f"🛡️ **Rifiutato da:** {interaction.user.mention}\n"
+                f"📝 **Motivazione:** `{motivazione}`\n"
+                f"📩 **Notificato in DM:** `{'SÌ ✅' if dm_inviato else 'NO ❌ (DM Chiusi)'}`"
+            ),
+            color=discord.Color.dark_red(),
+            timestamp=discord.utils.utcnow()
+        )
+        await canale_log.send(embed=embed_log)
+
+# ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
 @bot.event
