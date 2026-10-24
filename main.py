@@ -402,7 +402,11 @@ class VistaPannelloDocumenti(discord.ui.View):
     async def btn_armi(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalPortoDArmi())
 
+    @discord.ui.button(label="Stipula Assicurazione (€500)", style=discord.ButtonStyle.success, emoji="🛡️", custom_id="btn_stipula_assicurazione")
+    async def req_assicurazione(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(ModalAssicurazione())
 
+#sdasdas
 # --- Comando Slash /pannello ---
 @bot.tree.command(name="pannello", description="Manda il pannello principale per i documenti (Halloween Edition)")
 @app_commands.checks.has_permissions(administrator=True)
