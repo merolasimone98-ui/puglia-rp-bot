@@ -121,7 +121,7 @@ def update_user_duty(user_id_str, duty_data):
 # ==========================================
 # 🎃 MODULO: PANNELLO DOCUMENTI (CON APPROVAZIONE STAFF)
 # ==========================================
-ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
+ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544 
 
 # --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
 # --- Vista con Bottoni Accetta / Rifiuta per lo Staff ---
@@ -1335,89 +1335,6 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
         await canale_log.send(embed=embed_richiesta, view=vista)
 
         await interaction.followup.send("✅ **Modulo inviato con successo!** La tua identificazione è in attesa di verifica dallo Staff.", ephemeral=True)
-
-
-# ==========================================
-# 🔘 VISTA APPROVAZIONE IDENTIFICAZIONE
-# ==========================================
-class VistaApprovazioneIdentificazione(discord.ui.View):
-    def __init__(self, user_id: str, roblox_user: str, roblox_id: str, nome_rp: str, ruolo_staff: str):
-        super().__init__(timeout=None)
-        self.user_id = user_id
-        self.roblox_user = roblox_user
-        self.roblox_id = roblox_id
-        self.nome_rp = nome_rp
-        self.ruolo_staff = ruolo_staff
-
-    @discord.ui.button(label="✅ Accetta", style=discord.ButtonStyle.success, custom_id="btn_accetta_identificazione")
-    async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-
-        data = load_data()
-        if "identificazioni_staff" not in data:
-            data["identificazioni_staff"] = {}
-
-        data["identificazioni_staff"][self.user_id] = {
-            "roblox_user": self.roblox_user,
-            "roblox_id": self.roblox_id,
-            "nome_rp": self.nome_rp,
-            "ruolo": self.ruolo_staff,
-            "approvato_da": str(interaction.user.id)
-        }
-        save_data(data)
-
-        embed = interaction.message.embeds[0]
-        embed.color = discord.Color.green()
-        embed.title = "✅ IDENTIFICAZIONE STAFF APPROVATA"
-        embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
-
-        for child in self.children:
-            child.disabled = True
-        await interaction.message.edit(embed=embed, view=self)
-
-        # 📌 POST AUTOMATICO NEL FORUM STAFF
-        forum_channel = interaction.guild.get_channel(ID_FORUM_STAFF_IDENTIFICATI)
-        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-            embed_forum = discord.Embed(
-                title=f"🛡️ STAFF IDENTIFICATO — {self.roblox_user}",
-                description=(
-                    f"👤 **Membro Staff:** <@{self.user_id}>\n"
-                    f"🎮 **Username Roblox:** `{self.roblox_user}`\n"
-                    f"👤 **Nome RP:** `{self.nome_rp}`\n"
-                    f"🎖️ **Grado Staff:** `{self.ruolo_staff}`\n\n"
-                    "✅ *Identificazione ufficiale registrata nel database di Puglia RP.*"
-                ),
-                color=discord.Color.blue(),
-                timestamp=discord.utils.utcnow()
-            )
-            if self.roblox_id:
-                embed_forum.set_thumbnail(url=f"https://www.roblox.com/headshot-thumbnail/image?userId={self.roblox_id}&width=420&height=420&format=png")
-
-            await forum_channel.create_thread(
-                name=f"🛡️丨{self.roblox_user} ({self.ruolo_staff})",
-                embed=embed_forum
-            )
-
-        try:
-            target_member = interaction.guild.get_member(int(self.user_id))
-            if target_member:
-                await target_member.send(f"🎉 **Complimenti!** La tua identificazione Staff come **{self.roblox_user}** è stata approvata!")
-        except Exception:
-            pass
-
-    @discord.ui.button(label="❌ Rifiuta", style=discord.ButtonStyle.danger, custom_id="btn_rifiuta_identificazione")
-    async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-
-        embed = interaction.message.embeds[0]
-        embed.color = discord.Color.red()
-        embed.title = "❌ IDENTIFICAZIONE STAFF RIFIUTATA"
-        embed.set_footer(text=f"Rifiutato da {interaction.user.display_name}")
-
-        for child in self.children:
-            child.disabled = True
-        await interaction.message.edit(embed=embed, view=self)
-
 
 # ==========================================
 # 📌 COMANDO /IDENTIFICAMI
