@@ -132,12 +132,12 @@ ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
 # 🔘 VISTA APPROVAZIONE DOCUMENTI (DINAMICA & CORRETTA)
 # ==========================================
 class Documenti(discord.ui.View):
-    def __init__(self, user_id: str, nome_rp: str, roblox_user: str, tipo_doc: str = "Cittadinanza"):
+    def __init__(self, user_id: int, nome_rp: str, roblox_user: str, tipo_doc: str = "Cittadinanza"):
         super().__init__(timeout=None)
         self.user_id = user_id
         self.nome_rp = nome_rp
-        self.roblox_user = roblox_user
-        self.tipo_doc = tipo_doc  # Es: "Cittadinanza", "Patente A", "Patente B", "Porto d'Armi"
+        self.roblox_user = roblox_user  # Usato come Modello + Targa se tipo_doc == "Assicurazione"
+        self.tipo_doc = tipo_doc
 
     @discord.ui.button(label="Accetta Documento", style=discord.ButtonStyle.success, custom_id="btn_accetta_documento")
     async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -152,11 +152,11 @@ class Documenti(discord.ui.View):
                 "porto_darmi": False, "cittadinanza": True, "assicurazione": False
             })
 
-            # Identifichiamo il tipo di documento da registrare e l'emoji corrispondente
             tipo_upper = self.tipo_doc.upper()
             emoji_doc = "📄"
             ruolo_da_assegnare = None
 
+            # --- GESTIONE DEI VARI TIPI DI DOCUMENTI ---
             if "CITTADINANZA" in tipo_upper:
                 user_lic["cittadinanza"] = True
                 emoji_doc = "🇮🇹"
@@ -209,7 +209,7 @@ class Documenti(discord.ui.View):
                     role_id = ID_RUOLO_PATENTI.get("patente_a")
                 else:
                     role_id = None
-                
+
                 if role_id:
                     ruolo_da_assegnare = interaction.guild.get_role(role_id)
 
@@ -235,15 +235,29 @@ class Documenti(discord.ui.View):
             # 2. Invia il messaggio in DM all'utente
             dm_inviato = False
             if member:
-                embed_dm = discord.Embed(
-                    title=f"✅ {emoji_doc} DOCUMENTO APPROVATO",
-                    description=(
-                        f"Ciao {member.mention}, la tua richiesta per **{self.tipo_doc}** è stata **APPROVATA**!\n\n"
-                        f"🎗️ Ti è stato assegnato il rispettivo ruolo nel server."
-                    ),
-                    color=discord.Color.green(),
-                    timestamp=discord.utils.utcnow()
-                )
+                if "ASSICURAZIONE" in tipo_upper:
+                    embed_dm = discord.Embed(
+                        title="🛡️ ASSICURAZIONE APPROVATA",
+                        description=(
+                            f"Ciao {member.mention}, la tua richiesta di assicurazione per il veicolo "
+                            f"**{self.roblox_user}** è stata **APPROVATA** dallo Staff!\n\n"
+                            f"💸 **Costo addebitato:** `€ 500`\n"
+                            f"🎗️ Ti è stato assegnato il ruolo di assicurato."
+                        ),
+                        color=discord.Color.green(),
+                        timestamp=discord.utils.utcnow()
+                    )
+                else:
+                    embed_dm = discord.Embed(
+                        title=f"✅ {emoji_doc} DOCUMENTO APPROVATO",
+                        description=(
+                            f"Ciao {member.mention}, la tua richiesta per **{self.tipo_doc}** è stata **APPROVATA**!\n\n"
+                            f"🎗️ Ti è stato assegnato il rispettivo ruolo nel server."
+                        ),
+                        color=discord.Color.green(),
+                        timestamp=discord.utils.utcnow()
+                    )
+
                 try:
                     await member.send(embed=embed_dm)
                     dm_inviato = True
@@ -263,41 +277,51 @@ class Documenti(discord.ui.View):
 
             # Conferma visibile allo staff
             await interaction.followup.send(
-                f"✅ Documento approvato con successo!\n"
+                f"✅ **Documento approvato con successo!**\n"
                 f"🎗️ Ruolo assegnato: `{'SÌ ✅' if ruolo_assegnato else 'NO ❌ (Controlla gerarchia ruoli)'}`\n"
                 f"📩 DM inviato: `{'SÌ ✅' if dm_inviato else 'NO ❌ (L’utente ha i DM chiusi)'}`",
                 ephemeral=True
             )
-            # Aggiorna l'embed nel canale Accettazione Documenti
-            embed = interaction.message.embeds[0]
-            embed.color = discord.Color.green()
-            embed.title = f"✅ RICHIESTA APPROVATA: {self.tipo_doc.upper()}"
-            embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
 
-            # Disabilita i pulsanti
-            for child in self.children:
-                child.disabled = True
-            await interaction.message.edit(embed=embed, view=self)
-
-            # 📌 CREA IL POST AUTOMATICO NEL FORUM DOCUMENTI CITTADINI (CON IL NOME CORRETTO)
+            # 📥 CREA IL POST AUTOMATICO NEL FORUM DOCUMENTI CITTADINI
             forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
             if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-                embed_forum = discord.Embed(
-                    title=f"{emoji_doc} DOCUMENTO {self.tipo_doc.upper()} — {self.nome_rp}",
-                    description=(
-                        f"👤 **Cittadino:** <@{self.user_id}>\n"
-                        f"📜 **Nome RP:** `{self.nome_rp}`\n"
-                        f"🎮 **Account Roblox:** `{self.roblox_user}`\n"
-                        f"📄 **Tipo Documento:** `{self.tipo_doc}`\n\n"
-                        "✅ *Documento ufficiale registrato nel sistema di Puglia RP.*"
-                    ),
-                    color=discord.Color.green(),
-                    timestamp=discord.utils.utcnow()
-                )
-                await forum_channel.create_thread(
-                    name=f"{emoji_doc} {self.tipo_doc.upper()} | {self.nome_rp} ({self.roblox_user})",
-                    embed=embed_forum
-                )
+                if "ASSICURAZIONE" in tipo_upper:
+                    embed_forum = discord.Embed(
+                        title=f"🛡️ ASSICURAZIONE VEICOLO — {self.nome_rp}",
+                        description=(
+                            f"👤 **Intestatario:** {member.mention if member else 'Utente'}\n"
+                            f"📜 **Nome RP:** `{self.nome_rp}`\n"
+                            f"🚗 **Veicolo & Targa:** `{self.roblox_user}`\n"
+                            f"💳 **Stato Polizza:** `ATTIVA ✅`\n"
+                            f"💰 **Importo Saldato:** `€ 500`"
+                        ),
+                        color=discord.Color.blue(),
+                        timestamp=discord.utils.utcnow()
+                    )
+                    nome_thread = f"🛡️ ASSICURAZIONE | {self.nome_rp} ({self.roblox_user})"
+                else:
+                    embed_forum = discord.Embed(
+                        title=f"📄 {emoji_doc} DOCUMENTO ({self.tipo_doc}) — {self.nome_rp}",
+                        description=(
+                            f"👤 **Cittadino:** {member.mention if member else 'Utente'}\n"
+                            f"📜 **Nome RP:** `{self.nome_rp}`\n"
+                            f"🎮 **Account Roblox:** `{self.roblox_user}`\n"
+                            f"📌 **Tipo Documento:** `{self.tipo_doc}`\n\n"
+                            f"📌 *Documento ufficiale registrato nel sistema di Puglia RP.*"
+                        ),
+                        color=discord.Color.green(),
+                        timestamp=discord.utils.utcnow()
+                    )
+                    nome_thread = f"{emoji_doc} {self.tipo_doc.upper()} | {self.nome_rp} ({self.roblox_user})"
+
+                try:
+                    await forum_channel.create_thread(
+                        name=nome_thread,
+                        embed=embed_forum
+                    )
+                except Exception:
+                    pass
 
         except Exception as e:
             await interaction.followup.send(f"❌ Errore durante l'approvazione: `{e}`", ephemeral=True)
@@ -307,6 +331,42 @@ class Documenti(discord.ui.View):
         await interaction.response.defer()
 
         try:
+            member = interaction.guild.get_member(self.user_id)
+            if not member:
+                try:
+                    member = await interaction.guild.fetch_member(self.user_id)
+                except Exception:
+                    member = None
+
+            # Invia il DM di rifiuto all'utente
+            dm_inviato = False
+            if member:
+                tipo_upper = self.tipo_doc.upper()
+                if "ASSICURAZIONE" in tipo_upper:
+                    embed_dm = discord.Embed(
+                        title="❌ ASSICURAZIONE RIFIUTATA",
+                        description=(
+                            f"Ciao {member.mention}, la tua richiesta di assicurazione per **{self.roblox_user}** è stata **RIFIUTATA** dallo Staff.\n\n"
+                            f"⏳ Nessun importo è stato scalato. Puoi correggere i dati e inviare una nuova richiesta."
+                        ),
+                        color=discord.Color.red(),
+                        timestamp=discord.utils.utcnow()
+                    )
+                else:
+                    embed_dm = discord.Embed(
+                        title="❌ DOCUMENTO RIFIUTATO",
+                        description=f"Ciao {member.mention}, la tua richiesta per **{self.tipo_doc}** è stata **RIFIUTATA** dallo Staff.",
+                        color=discord.Color.red(),
+                        timestamp=discord.utils.utcnow()
+                    )
+
+                try:
+                    await member.send(embed=embed_dm)
+                    dm_inviato = True
+                except Exception:
+                    dm_inviato = False
+
+            # Aggiorna il messaggio nel canale log dello staff
             embed = interaction.message.embeds[0]
             embed.color = discord.Color.red()
             embed.title = f"❌ RICHIESTA RIFIUTATA: {self.tipo_doc.upper()}"
@@ -315,6 +375,13 @@ class Documenti(discord.ui.View):
             for child in self.children:
                 child.disabled = True
             await interaction.message.edit(embed=embed, view=self)
+
+            await interaction.followup.send(
+                f"❌ **Richiesta rifiutata con successo!**\n"
+                f"📩 DM inviato all'utente: `{'SÌ ✅' if dm_inviato else 'NO ❌ (ha i DM chiusi)'}`",
+                ephemeral=True
+            )
+
         except Exception as e:
             await interaction.followup.send(f"❌ Errore durante il rifiuto: `{e}`", ephemeral=True)
             
@@ -526,13 +593,20 @@ class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione 
     )
     modello_veicolo = discord.ui.TextInput(
         label="🚗 Modello Veicolo",
-        placeholder="Es. Fiat Punto",
+        placeholder="Es. Volksburg Marin",
         required=True,
         max_length=40
     )
     targa = discord.ui.TextInput(
         label="🔢 Targa Veicolo",
-        placeholder="Es. AA123BB",
+        placeholder="Es. AB/BC/10",
+        required=True,
+        max_length=20
+
+    )
+    soldi = discord.ui.TextInput(
+        label="💵 Hai 500 euro?",
+        placeholder="Es. Si, No",
         required=True,
         max_length=20
     )
@@ -574,6 +648,7 @@ class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione 
             f"✅ **Richiesta inviata con successo!** L'assicurazione per **{veicolo_info}** è stata inoltrata allo Staff per l'approvazione.", 
             ephemeral=True
         )
+
 
 
 # --- Vista dei Pulsanti ---
