@@ -602,11 +602,17 @@ class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione 
         placeholder="Es. AB/BC/10",
         required=True,
         max_length=20
+    )
+    patente = discord.ui.TextInput(
+        label="🪪 Tipo di Patente",
+        placeholder="Es. A, B, C, D",
+        required=True,
+        max_length=20
 
     )
     soldi = discord.ui.TextInput(
-        label="💵 Hai 500 euro?",
-        placeholder="Es. Si, No",
+        label="💵 Hai 500 euro da spendere?",
+        placeholder=" Si, No",
         required=True,
         max_length=20
     )
@@ -628,6 +634,7 @@ class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione 
                 f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
                 f"🚗 **Modello Veicolo:** `{self.modello_veicolo.value.strip()}`\n"
                 f"🔢 **Targa:** `{self.targa.value.strip()}`\n"
+                f"🪪 **Tipo Patente:** `{self.patente.value.strip()}\n"
                 f"💰 **Costo Previsto:** `€ 500`\n\n"
                 f"⏳ *In attesa di approvazione o rifiuto da parte dello Staff.*"
             ),
