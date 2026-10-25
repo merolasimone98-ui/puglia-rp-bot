@@ -149,7 +149,7 @@ class VistaApprovazioneDocumenti(discord.ui.View):
             licenze_data = data.setdefault("licenze_cittadini", {})
             user_lic = licenze_data.setdefault(user_id_str, {
                 "patente_a": False, "patente_b": False, "patente_c": False, "patente_d": False,
-                "porto_darmi": False, "cittadinanza": True
+                "porto_darmi": False, "cittadinanza": True, "assicurazione": False
             })
 
             # Identifichiamo il tipo di documento da registrare e l'emoji corrispondente
@@ -169,37 +169,86 @@ class VistaApprovazioneDocumenti(discord.ui.View):
                 if ID_RUOLO_PORTO_DARMI != 0:
                     ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
 
+            elif "ASSICURAZIONE" in tipo_upper:
+                user_lic["assicurazione"] = True
+                emoji_doc = "🛡️"
+                if ID_RUOLO_ASSICURATO != 0:
+                    ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
+
             elif "PATENTE" in tipo_upper:
-                emoji_doc = "🚗"
-                # Identifica la lettera (A, B, C, D)
                 if "A" in tipo_upper:
                     user_lic["patente_a"] = True
-                    role_id = RUOLI_PATENTI.get("patente_a")
+                    role_id = ID_RUOLO_PATENTI.get("patente_a")
                 elif "B" in tipo_upper:
                     user_lic["patente_b"] = True
-                    role_id = RUOLI_PATENTI.get("patente_b")
+                    role_id = ID_RUOLO_PATENTI.get("patente_b")
                 elif "C" in tipo_upper:
                     user_lic["patente_c"] = True
-                    role_id = RUOLI_PATENTI.get("patente_c")
+                    role_id = ID_RUOLO_PATENTI.get("patente_c")
                 elif "D" in tipo_upper:
                     user_lic["patente_d"] = True
-                    role_id = RUOLI_PATENTI.get("patente_d")
+                    role_id = ID_RUOLO_PATENTI.get("patente_d")
                 else:
                     role_id = None
-
+                
                 if role_id:
                     ruolo_da_assegnare = interaction.guild.get_role(role_id)
 
             save_data(data)
 
-            # Assegna il ruolo Discord all'utente se impostato
-            member = interaction.guild.get_member(int(self.user_id))
+            # Recuperiamo l'utente dal server
+            member = interaction.guild.get_member(self.user_id)
+            if not member:
+                try:
+                    member = await interaction.guild.fetch_member(self.user_id)
+                except Exception:
+                    member = None
+
+            # 1. Assegna il ruolo Discord all'utente
+            ruolo_assegnato = False
             if member and ruolo_da_assegnare:
                 try:
                     await member.add_roles(ruolo_da_assegnare, reason=f"Documento approvato: {self.tipo_doc}")
+                    ruolo_assegnato = True
                 except Exception:
                     pass
 
+            # 2. Invia il messaggio in DM all'utente
+            dm_inviato = False
+            if member:
+                embed_dm = discord.Embed(
+                    title=f"✅ {emoji_doc} DOCUMENTO APPROVATO",
+                    description=(
+                        f"Ciao {member.mention}, la tua richiesta per **{self.tipo_doc}** è stata **APPROVATA**!\n\n"
+                        f"🎗️ Ti è stato assegnato il rispettivo ruolo nel server."
+                    ),
+                    color=discord.Color.green(),
+                    timestamp=discord.utils.utcnow()
+                )
+                try:
+                    await member.send(embed=embed_dm)
+                    dm_inviato = True
+                except Exception:
+                    dm_inviato = False
+
+            # 3. Aggiorna l'embed nel canale Accettazione Documenti
+            embed = interaction.message.embeds[0]
+            embed.color = discord.Color.green()
+            embed.title = f"✅ RICHIESTA APPROVATA: {self.tipo_doc.upper()}"
+            embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
+
+            # Disabilita i pulsanti
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(embed=embed, view=self)
+
+            # Conferma visibile allo staff
+            await interaction.followup.send(
+                f"✅ Documento approvato con successo!\n"
+                f"🎗️ Ruolo assegnato: `{'SÌ ✅' if ruolo_assegnato else 'NO ❌ (Controlla gerarchia ruoli)'}`\n"
+                f"📩 DM inviato: `{'SÌ ✅' if dm_inviato else 'NO ❌ (L’utente ha i DM chiusi)'}`",
+                ephemeral=True
+            )
             # Aggiorna l'embed nel canale Accettazione Documenti
             embed = interaction.message.embeds[0]
             embed.color = discord.Color.green()
