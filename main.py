@@ -170,6 +170,25 @@ Documenti(discord.ui.View):
                     ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
 
             elif "ASSICURAZIONE" in tipo_upper:
+                # 1. Controlla e scala i € 500
+                eco = get_user_eco(user_id_str)
+                cash = eco.get("cash", 0)
+                bank = eco.get("bank", 0)
+
+                if cash >= 500:
+                    eco["cash"] -= 500
+                elif bank >= 500:
+                    eco["bank"] -= 500
+                else:
+                    await interaction.followup.send(
+                        f"❌ **Impossibile approvare:** L'utente non ha € 500. Possiede € {cash:,} in contanti e € {bank:,} in banca.",
+                        ephemeral=True
+                    )
+                    return
+
+                update_user_eco(user_id_str, eco)
+
+                # 2. Salva lo stato nei dati locali
                 user_lic["assicurazione"] = True
                 emoji_doc = "🛡️"
                 if ID_RUOLO_ASSICURATO != 0:
@@ -390,167 +409,6 @@ class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
         except Exception as e:
             await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
 
-# ==========================================
-# 🔘 VISTA APPROVAZIONE ASSICURAZIONE
-# ==========================================
-class VistaApprovazioneAssicurazione(discord.ui.View):
-    def __init__(self, user_id: int, nome_rp: str, veicolo: str):
-        super().__init__(timeout=None)
-        self.user_id = user_id
-        self.nome_rp = nome_rp
-        self.veicolo = veicolo
-
-    @discord.ui.button(label="Accetta", style=discord.ButtonStyle.success, emoji="✅", custom_id="btn_accetta_assicurazione")
-    async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-
-        # Recuperiamo l'utente
-        member = interaction.guild.get_member(self.user_id)
-        if not member:
-            try:
-                member = await interaction.guild.fetch_member(self.user_id)
-            except Exception:
-                member = None
-
-        if not member:
-            await interaction.followup.send("❌ L'utente non è più nel server!", ephemeral=True)
-            return
-
-        user_id_str = str(self.user_id)
-        eco = get_user_eco(user_id_str)
-        cash = eco.get("cash", 0)
-        bank = eco.get("bank", 0)
-
-        # Controllo fondi (€500) al momento dell'accettazione
-        if cash >= 500:
-            eco["cash"] -= 500
-        elif bank >= 500:
-            eco["bank"] -= 500
-        else:
-            await interaction.followup.send(
-                f"❌ Impossibile accettare: l'utente non ha abbastanza fondi (€ 500). "
-                f"Ha solo € {cash:,} in contanti e € {bank:,} in banca.",
-                ephemeral=True
-            )
-            return
-
-        update_user_eco(user_id_str, eco)
-
-        # Salva nei dati
-        data = load_data()
-        licenze_data = data.setdefault("licenze_cittadini", {})
-        user_lic = licenze_data.setdefault(user_id_str, {})
-        user_lic["assicurazione"] = True
-        save_data(data)
-
-        # Assegna il Ruolo Assicurato
-        ruolo_assegnato = False
-        if ID_RUOLO_ASSICURATO != 0:
-            ruolo = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
-            if ruolo:
-                try:
-                    await member.add_roles(ruolo, reason="Assicurazione veicolo approvata")
-                    ruolo_assegnato = True
-                except Exception:
-                    pass
-
-        # Invia DM all'utente
-        dm_inviato = False
-        embed_dm = discord.Embed(
-            title="🛡️ ASSICURAZIONE APPROVATA",
-            description=(
-                f"Ciao {member.mention}, la tua richiesta di assicurazione per il veicolo **{self.veicolo}** è stata **APPROVATA**!\n\n"
-                f"💸 **Costo addebitato:** `€ 500`\n"
-                f"🎗️ Ti è stato assegnato il ruolo di assicurato."
-            ),
-            color=discord.Color.green(),
-            timestamp=discord.utils.utcnow()
-        )
-        try:
-            await member.send(embed=embed_dm)
-            dm_inviato = True
-        except Exception:
-            dm_inviato = False
-
-        # Crea il Thread nel Forum Documenti
-        forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-            embed_forum = discord.Embed(
-                title=f"🛡️ ASSICURAZIONE VEICOLO — {self.nome_rp}",
-                description=(
-                    f"👤 **Intestatario:** {member.mention}\n"
-                    f"📜 **Nome RP:** `{self.nome_rp}`\n"
-                    f"🚘 **Veicolo / Targa:** `{self.veicolo}`\n"
-                    f"💳 **Stato Polizza:** `ATTIVA ✅`\n"
-                    f"💰 **Importo Saldato:** `€ 500`"
-                ),
-                color=discord.Color.blue(),
-                timestamp=discord.utils.utcnow()
-            )
-            try:
-                await forum_channel.create_thread(
-                    name=f"🛡️ ASSICURAZIONE | {self.nome_rp} ({self.veicolo})",
-                    embed=embed_forum
-                )
-            except Exception:
-                pass
-
-        # Aggiorna l'embed originale nel canale log
-        embed = interaction.message.embeds[0]
-        embed.color = discord.Color.green()
-        embed.title = "🛡️ ASSICURAZIONE APPROVATA"
-        embed.set_footer(text=f"Approvato da {interaction.user.display_name}")
-
-        for child in self.children:
-            child.disabled = True
-        await interaction.message.edit(embed=embed, view=self)
-
-        await interaction.followup.send(
-            f"✅ Assicurazione approvata per {member.mention}!\n"
-            f"💸 Scalati € 500 | Ruolo: `{'SÌ ✅' if ruolo_assegnato else 'NO ❌'}` | DM: `{'SÌ ✅' if dm_inviato else 'NO ❌'}`",
-            ephemeral=True
-        )
-
-    @discord.ui.button(label="Rifiuta", style=discord.ButtonStyle.danger, emoji="❌", custom_id="btn_rifiuta_assicurazione")
-    async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-
-        member = interaction.guild.get_member(self.user_id)
-        if not member:
-            try:
-                member = await interaction.guild.fetch_member(self.user_id)
-            except Exception:
-                member = None
-
-        # Notifica in DM se possibile
-        if member:
-            embed_dm = discord.Embed(
-                title="❌ ASSICURAZIONE RIFIUTATA",
-                description=(
-                    f"Ciao {member.mention}, la tua richiesta di assicurazione per il veicolo **{self.veicolo}** è stata **RIFIUTATA** dallo Staff.\n\n"
-                    f"⏳ Potrai inviare una nuova richiesta correggendo eventuali errori."
-                ),
-                color=discord.Color.red(),
-                timestamp=discord.utils.utcnow()
-            )
-            try:
-                await member.send(embed=embed_dm)
-            except Exception:
-                pass
-
-        # Aggiorna il messaggio nel canale log
-        embed = interaction.message.embeds[0]
-        embed.color = discord.Color.red()
-        embed.title = "❌ ASSICURAZIONE RIFIUTATA"
-        embed.set_footer(text=f"Rifiutato da {interaction.user.display_name}")
-
-        for child in self.children:
-            child.disabled = True
-        await interaction.message.edit(embed=embed, view=self)
-
-        tag_utente = member.mention if member else f"Utente ID: {self.user_id}"
-        await interaction.followup.send(f"❌ Richiesta di assicurazione rifiutata per {tag_utente}.", ephemeral=True)
-
 
 # ==========================================
 # 🔫 MODALE PORTO D'ARMI (CON MODELLO ARMA)
@@ -657,103 +515,65 @@ class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Pugli
         await interaction.followup.send(embed=embed_conferma, ephemeral=True)
 
 # ==========================================
-# 🛡️ MODALE ASSICURAZIONE
+# 🛡️ MODALE RICHIESTA ASSICURAZIONE (COMPLETO)
 # ==========================================
 class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione Veicolo"):
-    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    veicolo = discord.ui.TextInput(label="🚗 Modello Veicolo e Targa", placeholder="Es. Fiat Punto - AA123BB", required=True, max_length=60)
+    nome_rp = discord.ui.TextInput(
+        label="👤 Nome e Cognome RP",
+        placeholder="Es. Mario Rossi",
+        required=True,
+        max_length=50
+    )
+    modello_veicolo = discord.ui.TextInput(
+        label="🚗 Modello Veicolo",
+        placeholder="Es. Fiat Punto",
+        required=True,
+        max_length=40
+    )
+    targa = discord.ui.TextInput(
+        label="🔢 Targa Veicolo",
+        placeholder="Es. AA123BB",
+        required=True,
+        max_length=20
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        user_id_str = str(interaction.user.id)
-        
-        # 1. Scalo dei €500
-        eco = get_user_eco(user_id_str)
-        cash = eco.get("cash", 0)
-        bank = eco.get("bank", 0)
 
-        if cash >= 500:
-            eco["cash"] -= 500
-        elif bank >= 500:
-            eco["bank"] -= 500
-        else:
-            await interaction.followup.send(
-                f"❌ **Fondi insufficienti!** L'assicurazione costa **€ 500**. "
-                f"Hai solo € {cash:,} in contanti e € {bank:,} in banca.", 
-                ephemeral=True
-            )
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        if not canale_log:
+            await interaction.followup.send("❌ Canale di approvazione non trovato!", ephemeral=True)
             return
 
-        update_user_eco(user_id_str, eco)
+        veicolo_info = f"{self.modello_veicolo.value.strip()} ({self.targa.value.strip()})"
 
-        # 2. Salva nei dati
-        data = load_data()
-        licenze_data = data.setdefault("licenze_cittadini", {})
-        user_lic = licenze_data.setdefault(user_id_str, {})
-        user_lic["assicurazione"] = True
-        save_data(data)
-
-        # 3. Assegna Ruolo
-        if ID_RUOLO_ASSICURATO != 0:
-            ruolo = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
-            if ruolo:
-                try:
-                    await interaction.user.add_roles(ruolo, reason="Assicurazione veicolo stipulata")
-                except Exception:
-                    pass
-
-        # 4. Log Documenti
-        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
-        if canale_log:
-            embed_log = discord.Embed(
-                title="🛡️ NUOVA ASSICURAZIONE STIPULATA",
-                description=(
-                    f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
-                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                    f"🚘 **Veicolo & Targa:** `{self.veicolo.value.strip()}`\n"
-                    f"💰 **Costo Pagato:** `€ 500`"
-                ),
-                color=discord.Color.blue(),
-                timestamp=discord.utils.utcnow()
-            )
-            embed_log.set_footer(text="Puglia RP • Polizza Assicurativa Attiva")
-            await canale_log.send(embed=embed_log)
-
-        # 5. Thread Forum Documenti
-        forum_channel = interaction.guild.get_channel(ID_FORUM_DOCUMENTI)
-        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
-            embed_forum = discord.Embed(
-                title=f"🛡️ ASSICURAZIONE VEICOLO — {self.nome_rp.value.strip()}",
-                description=(
-                    f"👤 **Intestatario:** {interaction.user.mention}\n"
-                    f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                    f"🚘 **Veicolo / Targa:** `{self.veicolo.value.strip()}`\n"
-                    f"💳 **Stato Polizza:** `ATTIVA ✅`\n"
-                    f"💰 **Importo Saldato:** `€ 500`"
-                ),
-                color=discord.Color.blue(),
-                timestamp=discord.utils.utcnow()
-            )
-            try:
-                await forum_channel.create_thread(
-                    name=f"🛡️ ASSICURAZIONE | {self.nome_rp.value.strip()} ({self.veicolo.value.strip()})",
-                    embed=embed_forum
-                )
-            except Exception:
-                pass
-
-        # 6. Messaggio di conferma
-        embed_conferma = discord.Embed(
-            title="🛡️ ASSICURAZIONE ATTIVATA CON SUCCESSO!",
+        embed_richiesta = discord.Embed(
+            title="🛡️ RICHIESTA DOCUMENTO: ASSICURAZIONE VEICOLO",
             description=(
-                f"Hai stipulato l'assicurazione per il veicolo **{self.veicolo.value.strip()}**.\n\n"
-                f"💸 **Costo detratto:** `€ 500`\n"
-                f"🎗️ Ti è stato assegnato il ruolo <@&{ID_RUOLO_ASSICURATO}> e la polizza è registrata nel Forum Documenti."
+                f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                f"🚗 **Modello Veicolo:** `{self.modello_veicolo.value.strip()}`\n"
+                f"🔢 **Targa:** `{self.targa.value.strip()}`\n"
+                f"💰 **Costo Previsto:** `€ 500`\n\n"
+                f"⏳ *In attesa di approvazione o rifiuto da parte dello Staff.*"
             ),
-            color=discord.Color.green(),
+            color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        await interaction.followup.send(embed=embed_conferma, ephemeral=True)
+        embed_richiesta.set_footer(text="Puglia RP • Valutazione Polizza")
+
+        view = Documenti(
+            user_id=interaction.user.id,
+            nome_rp=self.nome_rp.value.strip(),
+            roblox_user=veicolo_info, # Inviamo le info del veicolo
+            tipo_doc="Assicurazione"
+        )
+
+        await canale_log.send(embed=embed_richiesta, view=view)
+        await interaction.followup.send(
+            f"✅ **Richiesta inviata con successo!** L'assicurazione per **{veicolo_info}** è stata inoltrata allo Staff per l'approvazione.", 
+            ephemeral=True
+        )
 
 
 # --- Vista dei Pulsanti ---
@@ -769,13 +589,15 @@ class VistaPannelloDocumenti(discord.ui.View):
     async def btn_patente(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalPatente())
 
-    @discord.ui.button(label="Porto d'Armi Legale", style=discord.ButtonStyle.danger, emoji="🪦", custom_id="btn_armi")
-    async def btn_armi(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ModalPortoDArmi())
-
     @discord.ui.button(label="Stipula Assicurazione (€500)", style=discord.ButtonStyle.success, emoji="🛡️", custom_id="btn_stipula_assicurazione")
     async def req_assicurazione(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalAssicurazione())
+
+    @discord.ui.button(label="Porto d'Armi", style=discord.ButtonStyle.danger, emoji="🔫", custom_id="btn_armi")
+    async def btn_armi(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(ModalPortoDArmi())
+
+    
 
 #sdasdas
 # --- Comando Slash /pannello ---
