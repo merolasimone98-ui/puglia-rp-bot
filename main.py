@@ -947,7 +947,7 @@ async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Me
 # ==========================================
 class ModalApriContoIstantaneo(discord.ui.Modal, title="🏦 Apertura Conto Corrente"):
     nome_cognome = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=40)
-    eta_rp = discord.ui.TextInput(label="🆔 Hai già la cittadinanza?P", placeholder="Si, No", required=True, max_length=10)
+    eta_rp = discord.ui.TextInput(label="🆔 Hai già la cittadinanza?", placeholder="Si, No", required=True, max_length=10)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
