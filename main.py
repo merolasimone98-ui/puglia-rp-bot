@@ -131,7 +131,7 @@ ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544
 # ==========================================
 # 🔘 VISTA APPROVAZIONE DOCUMENTI (DINAMICA & CORRETTA)
 # ==========================================
-Documenti(discord.ui.View):
+class Documenti(discord.ui.View):
     def __init__(self, user_id: str, nome_rp: str, roblox_user: str, tipo_doc: str = "Cittadinanza"):
         super().__init__(timeout=None)
         self.user_id = user_id
