@@ -502,7 +502,7 @@ class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Pugli
     motivazione = discord.ui.TextInput(
         label="📝 Motivazione Richiesta",
         style=discord.TextStyle.paragraph,
-        placeholder="Es. Difesa personale / Lavoro di sicurezza",
+        placeholder="",
         required=True,
         max_length=300
     )
@@ -1243,21 +1243,39 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     await interaction.response.defer()
 
     embed = discord.Embed(
-        title="🏛️ BANCA DI PUGLIA RP — SERVIZI FINANZIARI 🏴‍☠️",
+        title="🏦 ┆ BANCA DI PUGLIA RP — SPORTELLO DIGITALE",
         description=(
-            "🕵️‍♂️ **Benvenuto allo sportello bancario ufficiale!**\n\n"
-            "📜 **Requisiti per l'apertura:**\n"
-            "• Inserire i propri dati anagrafici corretti in RP.\n\n"
-            "🎁 **Vantaggi immediati:**\n"
-            "Ricevi subito **€ 1.000** di bonus benvenuto sul tuo nuovo conto corrente!\n\n"
-            "👇 *Clicca sul pulsante sottostante per procedere.*"
+            "✨ **Benvenuto cittadino!** Gestisci al meglio le tue finanze all'interno della regione.\n"
+            "Apri subito il tuo conto corrente personale in modo semplice, rapido e sicuro.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=discord.Color.from_rgb(230, 126, 34),
         timestamp=discord.utils.utcnow()
     )
+
+    # Aggiungiamo dei campi ordinati per dare un tocco pulito e professionale
+    embed.add_field(
+        name="📋 ┆ Requisiti per l'Apertura",
+        value="• Essere residenti registrati a **Puglia RP**\n• Utilizzare i propri dati anagrafici reali in RP",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🎁 ┆ Vantaggi Esclusivi",
+        value="• Ricevi subito un bonus di benvenuto di **€ 1.000** sul nuovo conto!\n• Accesso a bonifici, gestione contanti e prestiti regionali.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚡ ┆ Come procedere",
+        value="*Clicca sul pulsante sottostante per avviare la procedura guidata e registrare subito il tuo conto bancario.*",
+        inline=False
+    )
+
     if interaction.guild.icon:
         embed.set_thumbnail(url=interaction.guild.icon.url)
-    embed.set_footer(text="Puglia RP • Gestione Finanziaria Sicura")
+        
+    embed.set_footer(text="Puglia RP • Sistema Finanziario Integrato", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
 
     await interaction.followup.send(embed=embed, view=VistaContoBancario())
 
