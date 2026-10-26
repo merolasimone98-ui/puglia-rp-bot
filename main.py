@@ -195,20 +195,19 @@ class Documenti(discord.ui.View):
                     ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
 
             elif "PATENTE" in tipo_upper:
-                if "PATENTE B" in tipo_upper:
-                    user_lic["patente_b"] = True
-                    role_id = ID_RUOLO_PATENTI.get("patente_b")
-                elif "PATENTE C" in tipo_upper:
-                    user_lic["patente_c"] = True
-                    role_id = ID_RUOLO_PATENTI.get("patente_c")
-                elif "PATENTE D" in tipo_upper:
-                    user_lic["patente_d"] = True
-                    role_id = ID_RUOLO_PATENTI.get("patente_d")
-                elif "PATENTE A" in tipo_upper:
+                role_id = None
+                if "A" in tipo_upper:
                     user_lic["patente_a"] = True
                     role_id = ID_RUOLO_PATENTI.get("patente_a")
-                else:
-                    role_id = None
+                elif "B" in tipo_upper:
+                    user_lic["patente_b"] = True
+                    role_id = ID_RUOLO_PATENTI.get("patente_b")
+                elif "C" in tipo_upper:
+                    user_lic["patente_c"] = True
+                    role_id = ID_RUOLO_PATENTI.get("patente_c")
+                elif "D" in tipo_upper:
+                    user_lic["patente_d"] = True
+                    role_id = ID_RUOLO_PATENTI.get("patente_d")
 
                 if role_id:
                     ruolo_da_assegnare = interaction.guild.get_role(role_id)
