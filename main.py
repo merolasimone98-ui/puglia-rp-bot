@@ -347,7 +347,7 @@ class Documenti(discord.ui.View):
                         title="❌ ASSICURAZIONE RIFIUTATA",
                         description=(
                             f"Ciao {member.mention}, la tua richiesta di assicurazione per **{self.roblox_user}** è stata **RIFIUTATA** dallo Staff.\n\n"
-                            f"⏳ Nessun importo è stato scalato. Puoi correggere i dati e inviare una nuova richiesta."
+                            f"⏳ Devi avere minimo 500 euro per fare l'assicurazione al veicolo, prova a fare /portafoglio per vedere il tuo saldo."
                         ),
                         color=discord.Color.red(),
                         timestamp=discord.utils.utcnow()
@@ -467,17 +467,17 @@ class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
         required=True,
         max_length=50
     )
-    tipo_patente = discord.ui.TextInput(
-        label="🪪 Tipo di Patente (A, B, C, D)",
-        placeholder="Es. Patente B",
-        required=True,
-        max_length=20
-    )
     roblox_user = discord.ui.TextInput(
         label="🎮 Nome Utente Roblox",
         placeholder="Es. Player123",
         required=True,
         max_length=50
+    )
+    tipo_patente = discord.ui.TextInput(
+        label="🪪 Tipo di Patente (A, B, C, D)",
+        placeholder="Es. B",
+        required=True,
+        max_length=20
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -1325,7 +1325,7 @@ async def pannello_conto_cmd(interaction: discord.Interaction):
     app_commands.Choice(name="🚌 Patente D (Autobus)", value="patente_d"),
     app_commands.Choice(name="🔫 Porto d'Armi", value="porto_darmi"),
     app_commands.Choice(name="🛡️ Assicurazione Veicolo", value="assicurazione"),
-    app_commands.Choice(name="🇮🇹 Cittadinanza", value="cittadinanza"),
+    app_commands.Choice(name="🆔 Cittadinanza", value="cittadinanza"),
     app_commands.Choice(name="🏦 Conto Bancario / Documenti", value="documenti"),
     app_commands.Choice(name="🛡️ Identificazione Staff", value="staff")
 ])
