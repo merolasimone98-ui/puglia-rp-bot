@@ -211,6 +211,8 @@ class Documenti(discord.ui.View):
 
                 if role_id:
                     ruolo_da_assegnare = interaction.guild.get_role(role_id)
+                else:
+                    print(f"[DEBUG] Errore: Nessun ID trovato per {tipo_upper}")
 
             save_data(data)
 
