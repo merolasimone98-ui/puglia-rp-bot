@@ -388,92 +388,145 @@ class Documenti(discord.ui.View):
 # ==========================================
 # 📝 MODALE RICHIESTA CITTADINANZA
 # ==========================================
+# ==========================================
+# 🇮🇹 MODALE RICHIESTA CITTADINANZA
+# ==========================================
 class ModalCittadinanza(discord.ui.Modal, title="🇮🇹 Richiesta Cittadinanza Puglia RP"):
-    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. Player123", required=True, max_length=40)
-    eta_rp = discord.ui.TextInput(label="🎂 Età RP", placeholder="Es. 25", required=True, max_length=3)
+    nome_rp = discord.ui.TextInput(
+        label="👤 Nome e Cognome RP",
+        placeholder="Es. Mario Rossi",
+        required=True,
+        max_length=50
+    )
+    roblox_user = discord.ui.TextInput(
+        label="🎮 Nome Utente Roblox",
+        placeholder="Es. MarioRossi_123",
+        required=True,
+        max_length=50
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
+        # 1. Recupera il canale dei log/accettazione
         canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
         if not canale_log:
-            await interaction.followup.send(f"❌ Errore: Canale log documenti (`{ID_CANALE_LOG_DOCUMENTI}`) non trovato nel server!", ephemeral=True)
+            await interaction.followup.send(
+                "❌ **Errore:** Il canale di approvazione documenti non è configurato correttamente! Avvisa un Amministratore.", 
+                ephemeral=True
+            )
             return
 
+        # 2. Embed inviato allo Staff nel canale di accettazione
         embed_richiesta = discord.Embed(
-            title="📥 NUOVA RICHIESTA: CITTADINANZA",
+            title="🇮🇹 RICHIESTA DOCUMENTO: CITTADINANZA",
             description=(
-                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
                 f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
-                f"🎂 **Età RP:** `{self.eta_rp.value.strip()} anni`"
+                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n\n"
+                f"⏳ *In attesa di approvazione o rifiuto da parte dello Staff.*"
             ),
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione dallo Staff")
+        embed_richiesta.set_footer(text="Puglia RP • In attesa di valutazione")
 
-        vista = VistaApprovazioneDocumenti(
-            user_id=str(interaction.user.id),
+        # 3. Collega i pulsanti della vista Documenti
+        view = Documenti(
+            user_id=interaction.user.id,
             nome_rp=self.nome_rp.value.strip(),
             roblox_user=self.roblox_user.value.strip(),
             tipo_doc="Cittadinanza"
         )
 
         try:
-            await canale_log.send(embed=embed_richiesta, view=vista)
-            await interaction.followup.send("✅ **Modulo inviato con successo!** La tua richiesta è in fase di valutazione.", ephemeral=True)
+            # 4. Invio nel canale staff
+            await canale_log.send(embed=embed_richiesta, view=view)
+            await interaction.followup.send(
+                "✅ **Richiesta inviata con successo!** È stata inoltrata allo Staff per la valutazione.", 
+                ephemeral=True
+            )
         except Exception as e:
-            await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
+            await interaction.followup.send(
+                f"❌ Impossibile inviare la richiesta nel canale staff. Errore permessi: `{e}`", 
+                ephemeral=True
+            )
 
 
 # --- Modale Patente (Ordinata e Senza Roblox) ---
 # ==========================================
 # 🚗 MODALE RICHIESTA PATENTI (A, B, C, D)
 # ==========================================
+# ==========================================
+# 🚗 MODALE RICHIESTA PATENTE
+# ==========================================
 class ModalPatente(discord.ui.Modal, title="🚗 Richiesta Patente Puglia RP"):
-    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    roblox_user = discord.ui.TextInput(label="🎮 Account Roblox", placeholder="Es. Player123", required=True, max_length=40)
-    tipo_patente = discord.ui.TextInput(label="📜 Tipo Patente (A / B / C / D)", placeholder="Es. B", required=True, max_length=2)
+    nome_rp = discord.ui.TextInput(
+        label="👤 Nome e Cognome RP",
+        placeholder="Es. Mario Rossi",
+        required=True,
+        max_length=50
+    )
+    tipo_patente = discord.ui.TextInput(
+        label="🪪 Tipo di Patente (A, B, C, D)",
+        placeholder="Es. Patente B",
+        required=True,
+        max_length=20
+    )
+    roblox_user = discord.ui.TextInput(
+        label="🎮 Nome Utente Roblox",
+        placeholder="Es. MarioRossi_123",
+        required=True,
+        max_length=50
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
+        # 1. Recupera il canale dei log/accettazione dello staff
         canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
         if not canale_log:
-            await interaction.followup.send(f"❌ Errore: Canale log documenti (`{ID_CANALE_LOG_DOCUMENTI}`) non trovato nel server!", ephemeral=True)
+            await interaction.followup.send(
+                "❌ **Errore:** Il canale di approvazione documenti non è configurato correttamente! Avvisa un Amministratore.", 
+                ephemeral=True
+            )
             return
 
-        pat_val = self.tipo_patente.value.strip().upper()
-        if pat_val not in ["A", "B", "C", "D"]:
-            await interaction.followup.send("❌ Tipo di patente non valido! Inserisci una lettera tra **A, B, C o D**.", ephemeral=True)
-            return
-
+        # 2. Crea l'embed da mandare allo Staff nel canale di accettazione
         embed_richiesta = discord.Embed(
-            title=f"📥 NUOVA RICHIESTA: PATENTE {pat_val}",
+            title=f"🚗 RICHIESTA DOCUMENTO: {self.tipo_patente.value.strip().upper()}",
             description=(
-                f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                f"👤 **Cittadino:** {interaction.user.mention} (`{interaction.user.id}`)\n"
                 f"📜 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
-                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n"
-                f"🚗 **Tipo Patente:** `{pat_val}`"
+                f"🪪 **Tipo Richiesto:** `{self.tipo_patente.value.strip()}`\n"
+                f"🎮 **Account Roblox:** `{self.roblox_user.value.strip()}`\n\n"
+                f"⏳ *In attesa di approvazione o rifiuto da parte dello Staff.*"
             ),
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
-        embed_richiesta.set_footer(text="Richiesta in attesa di approvazione Staff/FDO")
+        embed_richiesta.set_footer(text="Puglia RP • In attesa di valutazione")
 
-        vista = VistaApprovazioneDocumenti(
-            user_id=str(interaction.user.id),
+        # 3. Collega i pulsanti della vista Documenti passando il tipo esatto (es. "Patente B")
+        view = Documenti(
+            user_id=interaction.user.id,
             nome_rp=self.nome_rp.value.strip(),
             roblox_user=self.roblox_user.value.strip(),
-            tipo_doc=f"Patente {pat_val}"
+            tipo_doc=self.tipo_patente.value.strip()  # Importante per far riconoscere se è A, B, C o D
         )
 
         try:
-            await canale_log.send(embed=embed_richiesta, view=vista)
-            await interaction.followup.send("✅ **Modulo inviato con successo!** La tua richiesta per la patente è in fase di valutazione.", ephemeral=True)
+            # 4. Invia nel canale staff con i bottoni Accetta/Rifiuta
+            await canale_log.send(embed=embed_richiesta, view=view)
+            await interaction.followup.send(
+                "✅ **Richiesta di patente inviata con successo!** È stata inoltrata allo Staff per la valutazione.", 
+                ephemeral=True
+            )
         except Exception as e:
+            await interaction.followup.send(
+                f"❌ Impossibile inviare la richiesta nel canale staff. Errore: `{e}`", 
+                ephemeral=True
+            )
             await interaction.followup.send(f"❌ Errore nell'invio della richiesta nel canale: `{e}`", ephemeral=True)
 
 
