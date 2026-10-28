@@ -1941,55 +1941,66 @@ class SelectStipendio(discord.ui.Select):
         
         scelta = self.values[0]
         user_id_str = str(interaction.user.id)
+        tempo_attuale = int(time.time())
+        COOLDOWN_SECONDI = 7 * 24 * 60 * 60  # 7 giorni reali in secondi (604.800 s)
         
-        # Controllo Cooldown di 7 giorni (604.800 secondi)
+        # 1. Caricamento dati generali (per Cooldown e Economia)
         data = load_data()
-        stipendi_data = data.setdefault("stipendi_cooldown", {})
-        ultimo_ritiro = stipendi_data.get(user_id_str, {}).get(scelta, 0)
-        tempo_attuale = time.time()
-        COOLDOWN_SECONDI = 7 * 24 * 60 * 60
+        
+        # Gestione Cooldown
+        cooldowns = data.setdefault("stipendi_cooldown", {})
+        user_cooldowns = cooldowns.setdefault(user_id_str, {})
+        ultimo_ritiro = user_cooldowns.get(scelta, 0)
 
         if tempo_attuale - ultimo_ritiro < COOLDOWN_SECONDI:
-            tempo_rimanente = int(COOLDOWN_SECONDI - (tempo_attuale - ultimo_ritiro))
+            tempo_rimanente = COOLDOWN_SECONDI - (tempo_attuale - ultimo_ritiro)
             giorni = tempo_rimanente // 86400
             ore = (tempo_rimanente % 86400) // 3600
+            minuti = (tempo_rimanente % 3600) // 60
             
             await interaction.followup.send(
-                f"⏳ **Hai già ritirato questo stipendio di recente!**\n"
-                f"Potrai richiederlo nuovamente tra **{giorni} giorni e {ore} ore**.",
+                f"⏳ **Hai già ritirato questo stipendio di recente!**\n\n"
+                f"Devi attendere **7 giorni** tra un ritiro e l'altro.\n"
+                f"⏰ **Prossimo ritiro disponibile tra:** `{giorni} giorni, {ore} ore e {minuti} minuti`.",
                 ephemeral=True
             )
             return
 
-        # Mappatura importi stipendio
+        # 2. Importi degli stipendi
         importi = {
             "fdo": 3500,
             "vvf": 3000,
             "cri": 3000,
             "cittadino": 800
         }
-        
         stipendio_scelto = importi.get(scelta, 800)
-        
-        # Aggiornamento economia utente
-        eco = get_user_eco(user_id_str)
-        eco["bank"] = eco.get("bank", 0) + stipendio_scelto
-        update_user_eco(user_id_str, eco)
 
-        # Salvataggio Cooldown
-        stipendi_data.setdefault(user_id_str, {})[scelta] = tempo_attuale
+        # 3. Accredito Diretto nel Conto Bancario dell'Economia
+        # Accediamo alla struttura esatta dell'economia usata da /portafoglio
+        economia_data = data.setdefault("economia", {})
+        conto_utente = economia_data.setdefault(user_id_str, {"contanti": 0, "banca": 0})
+        
+        # Aggiungiamo i soldi in BANCA
+        conto_utente["banca"] = conto_utente.get("banca", 0) + stipendio_scelto
+
+        # 4. Salvataggio del nuovo timestamp di ritiro e dei dati nel file JSON
+        user_cooldowns[scelta] = tempo_attuale
         save_data(data)
-        
-        # Disabilita il menu dopo la selezione per evitare doppi click
-        self.disabled = True
-        await interaction.edit_original_response(view=self.view)
 
-        # Conferma accreditamento
+        # Disabilita il menu a tendina per evitare doppi click immediati
+        self.disabled = True
+        try:
+            await interaction.edit_original_response(view=self.view)
+        except Exception:
+            pass
+
+        # 5. Messaggio di conferma accreditamento
         await interaction.followup.send(
-            f"✅ **Stipendio ritirato con successo!**\n"
-            f"💼 **Categoria:** `{scelta.upper()}`\n"
-            f"💶 **Accreditato in banca:** `€ {stipendio_scelto:,}`\n"
-            f"⏰ Prossimo ritiro per questa categoria disponibile tra **7 giorni**.",
+            f"✅ **Stipendio accreditato con successo!**\n\n"
+            f"💼 **Settore:** `{scelta.upper()}`\n"
+            f"🏦 **Accreditato nel Conto Bancario:** `€ {stipendio_scelto:,}`\n"
+            f"💳 **Nuovo Saldo In Banca:** `€ {conto_utente['banca']:,}`\n\n"
+            f"📅 *Potrai ritirare nuovamente questo stipendio tra 7 giorni.*",
             ephemeral=True
         )
 
@@ -2001,14 +2012,14 @@ class ViewStipendi(discord.ui.View):
 # ==========================================
 # 💸 COMANDO SLASH: /ritira-stipendio
 # ==========================================
-@bot.tree.command(name="ritira-stipendio", description="Apri la GUI per ritirare il tuo stipendio settimanale")
+@bot.tree.command(name="ritira-stipendio", description="Apri la GUI per ritirare il tuo stipendio settimanale in banca")
 async def ritira_stipendio_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     
     user_roles = [role.id for role in interaction.user.roles]
     ruoli_posseduti = []
     
-    # Controllo dei ruoli dell'utente
+    # Verifica dei ruoli posseduti
     if ID_RUOLO_FDO in user_roles:
         ruoli_posseduti.append("fdo")
     if ID_RUOLO_VVF in user_roles:
@@ -2018,28 +2029,26 @@ async def ritira_stipendio_cmd(interaction: discord.Interaction):
     if ID_RUOLO_CITTADINO in user_roles:
         ruoli_posseduti.append("cittadino")
         
-    # Se non ha ruoli lavorativi o sussidio
     if not ruoli_posseduti:
         await interaction.followup.send(
-            "❌ **Non possiedi i ruoli necessari** per ritirare uno stipendio o sussidio!",
+            "❌ **Non possiedi alcun ruolo lavorativo o di cittadino** per poter ritirare uno stipendio!",
             ephemeral=True
         )
         return
 
-    # Mostra la GUI con il menu a tendina visibile solo all'utente
+    # Genera la GUI con il pannello di ritiro
     embed_gui = discord.Embed(
-        title="💼 PANNELLO RITIRO STIPENDI",
+        title="🏦 PANNELLO ACCREDITO STIPENDI",
         description=(
-            "Seleziona dal menu a tendina sottostante quale stipendio o sussidio desideri incassare.\n\n"
-            "📌 *Puoi ritirare lo stipendio per ogni categoria una volta ogni 7 giorni.*"
+            "Seleziona dal menu a tendina lo stipendio da depositare sul tuo **Conto Bancario**.\n\n"
+            "⚠️ *Gli stipendi si possono riscattare **una volta ogni 7 giorni** per ciascuna categoria.*"
         ),
-        color=discord.Color.green()
+        color=discord.Color.green(),
+        timestamp=discord.utils.utcnow()
     )
-    embed_gui.set_footer(text="Puglia RP • Sistema Economico Stabile")
+    embed_gui.set_footer(text="Puglia RP • Banca Centrale")
 
     view = ViewStipendi(ruoli_posseduti)
-    
-    # ephemeral=True rende il messaggio privato e visibile una sola volta all'utente
     await interaction.followup.send(embed=embed_gui, view=view, ephemeral=True)
 
 # ==========================================
