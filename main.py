@@ -1894,23 +1894,47 @@ async def notifica_rifiuto(interaction: discord.Interaction, utente: discord.Mem
             timestamp=discord.utils.utcnow()
         )
         await canale_log.send(embed=embed_log)
-
-# ==========================================
-# 📋 INTERFACCIA DI SELEZIONE STIPENDIO
-# ==========================================
+###########################################
+#STIPENDI#
+##########################
 class SelectStipendio(discord.ui.Select):
     def __init__(self, ruoli_disponibili):
         opzioni = []
         if "fdo" in ruoli_disponibili:
-            opzioni.append(discord.SelectOption(label="Stipendio FDO", description="Ritira € 3.500 (Forze dell'Ordine)", emoji="👮‍♂️", value="fdo"))
+            opzioni.append(discord.SelectOption(
+                label="Stipendio FDO", 
+                description="Ritira € 3.500 (Forze dell'Ordine)", 
+                emoji="👮‍♂️", 
+                value="fdo"
+            ))
         if "vvf" in ruoli_disponibili:
-            opzioni.append(discord.SelectOption(label="Stipendio VVF", description="Ritira € 3.000 (Vigili del Fuoco)", emoji="🚒", value="vvf"))
+            opzioni.append(discord.SelectOption(
+                label="Stipendio VVF", 
+                description="Ritira € 3.000 (Vigili del Fuoco)", 
+                emoji="🚒", 
+                value="vvf"
+            ))
         if "cri" in ruoli_disponibili:
-            opzioni.append(discord.SelectOption(label="Stipendio CRI", description="Ritira € 3.000 (Croce Rossa)", emoji="🚑", value="cri"))
+            opzioni.append(discord.SelectOption(
+                label="Stipendio CRI", 
+                description="Ritira € 3.000 (Croce Rossa)", 
+                emoji="🚑", 
+                value="cri"
+            ))
         if "cittadino" in ruoli_disponibili:
-            opzioni.append(discord.SelectOption(label="Sussidio Cittadino", description="Ritira € 800 (Sussidio Base)", emoji="🪪", value="cittadino"))
+            opzioni.append(discord.SelectOption(
+                label="Sussidio Cittadino", 
+                description="Ritira € 800 (Sussidio Base)", 
+                emoji="🪪", 
+                value="cittadino"
+            ))
 
-        super().__init__(placeholder="Seleziona quale stipendio ritirare...", min_values=1, max_values=1, options=opzioni)
+        super().__init__(
+            placeholder="Seleziona quale stipendio desideri ritirare...", 
+            min_values=1, 
+            max_values=1, 
+            options=opzioni
+        )
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -1918,25 +1942,26 @@ class SelectStipendio(discord.ui.Select):
         scelta = self.values[0]
         user_id_str = str(interaction.user.id)
         
-        # Gestione cooldown (7 giorni in secondi = 604800)
+        # Controllo Cooldown di 7 giorni (604.800 secondi)
         data = load_data()
         stipendi_data = data.setdefault("stipendi_cooldown", {})
         ultimo_ritiro = stipendi_data.get(user_id_str, {}).get(scelta, 0)
         tempo_attuale = time.time()
-        COOLDOWN_SECONDI = 7 * 24 * 60 * 60  # 7 giorni
+        COOLDOWN_SECONDI = 7 * 24 * 60 * 60
 
         if tempo_attuale - ultimo_ritiro < COOLDOWN_SECONDI:
             tempo_rimanente = int(COOLDOWN_SECONDI - (tempo_attuale - ultimo_ritiro))
             giorni = tempo_rimanente // 86400
             ore = (tempo_rimanente % 86400) // 3600
+            
             await interaction.followup.send(
                 f"⏳ **Hai già ritirato questo stipendio di recente!**\n"
-                f"Potrai richiederlo tra **{giorni} giorni e {ore} ore**.",
+                f"Potrai richiederlo nuovamente tra **{giorni} giorni e {ore} ore**.",
                 ephemeral=True
             )
             return
 
-        # Importi stipendi
+        # Mappatura importi stipendio
         importi = {
             "fdo": 3500,
             "vvf": 3000,
@@ -1946,20 +1971,25 @@ class SelectStipendio(discord.ui.Select):
         
         stipendio_scelto = importi.get(scelta, 800)
         
-        # Accredito nel conto economico esistente
+        # Aggiornamento economia utente
         eco = get_user_eco(user_id_str)
         eco["bank"] = eco.get("bank", 0) + stipendio_scelto
         update_user_eco(user_id_str, eco)
 
-        # Salvataggio cooldown
+        # Salvataggio Cooldown
         stipendi_data.setdefault(user_id_str, {})[scelta] = tempo_attuale
         save_data(data)
         
+        # Disabilita il menu dopo la selezione per evitare doppi click
+        self.disabled = True
+        await interaction.edit_original_response(view=self.view)
+
+        # Conferma accreditamento
         await interaction.followup.send(
             f"✅ **Stipendio ritirato con successo!**\n"
             f"💼 **Categoria:** `{scelta.upper()}`\n"
             f"💶 **Accreditato in banca:** `€ {stipendio_scelto:,}`\n"
-            f"⏰ Prossimo ritiro disponibile tra **7 giorni**.",
+            f"⏰ Prossimo ritiro per questa categoria disponibile tra **7 giorni**.",
             ephemeral=True
         )
 
@@ -1968,17 +1998,17 @@ class ViewStipendi(discord.ui.View):
         super().__init__(timeout=60)
         self.add_item(SelectStipendio(ruoli_disponibili))
 
-
 # ==========================================
 # 💸 COMANDO SLASH: /ritira-stipendio
 # ==========================================
-@bot.tree.command(name="ritira-stipendio", description="Ritira lo stipendio settimanale della tua fazione o il sussidio")
+@bot.tree.command(name="ritira-stipendio", description="Apri la GUI per ritirare il tuo stipendio settimanale")
 async def ritira_stipendio_cmd(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     
     user_roles = [role.id for role in interaction.user.roles]
     ruoli_posseduti = []
     
+    # Controllo dei ruoli dell'utente
     if ID_RUOLO_FDO in user_roles:
         ruoli_posseduti.append("fdo")
     if ID_RUOLO_VVF in user_roles:
@@ -1988,62 +2018,29 @@ async def ritira_stipendio_cmd(interaction: discord.Interaction):
     if ID_RUOLO_CITTADINO in user_roles:
         ruoli_posseduti.append("cittadino")
         
+    # Se non ha ruoli lavorativi o sussidio
     if not ruoli_posseduti:
         await interaction.followup.send(
-            "❌ **Non possiedi i requisiti necessari** per ritirare alcuno stipendio o sussidio!",
-            ephemeral=True
-        )
-        return
-        
-    # Se l'utente ha diritto a un solo stipendio/sussidio
-    if len(ruoli_posseduti) == 1:
-        unico_lavoro = ruoli_posseduti[0]
-        user_id_str = str(interaction.user.id)
-        
-        # Controllo cooldown
-        data = load_data()
-        stipendi_data = data.setdefault("stipendi_cooldown", {})
-        ultimo_ritiro = stipendi_data.get(user_id_str, {}).get(unico_lavoro, 0)
-        tempo_attuale = time.time()
-        COOLDOWN_SECONDI = 7 * 24 * 60 * 60
-
-        if tempo_attuale - ultimo_ritiro < COOLDOWN_SECONDI:
-            tempo_rimanente = int(COOLDOWN_SECONDI - (tempo_attuale - ultimo_ritiro))
-            giorni = tempo_rimanente // 86400
-            ore = (tempo_rimanente % 86400) // 3600
-            await interaction.followup.send(
-                f"⏳ **Hai già ritirato questo stipendio di recente!**\n"
-                f"Potrai richiederlo tra **{giorni} giorni e {ore} ore**.",
-                ephemeral=True
-            )
-            return
-
-        importi = {"fdo": 3500, "vvf": 3000, "cri": 3000, "cittadino": 800}
-        stipendio = importi.get(unico_lavoro, 800)
-        
-        eco = get_user_eco(user_id_str)
-        eco["bank"] = eco.get("bank", 0) + stipendio
-        update_user_eco(user_id_str, eco)
-
-        stipendi_data.setdefault(user_id_str, {})[unico_lavoro] = tempo_attuale
-        save_data(data)
-        
-        await interaction.followup.send(
-            f"✅ **Stipendio ritirato con successo!**\n"
-            f"💼 **Categoria:** `{unico_lavoro.upper()}`\n"
-            f"💶 **Accreditato in banca:** `€ {stipendio:,}`\n"
-            f"⏰ Prossimo ritiro disponibile tra **7 giorni**.",
+            "❌ **Non possiedi i ruoli necessari** per ritirare uno stipendio o sussidio!",
             ephemeral=True
         )
         return
 
-    # Se l'utente ha più ruoli (es. cittadino + fdo), mostra il menu di scelta
-    view = ViewStipendi(ruoli_posseduti)
-    await interaction.followup.send(
-        "💼 **Seleziona dal menu quale stipendio o sussidio desideri ritirare:**",
-        view=view,
-        ephemeral=True
+    # Mostra la GUI con il menu a tendina visibile solo all'utente
+    embed_gui = discord.Embed(
+        title="💼 PANNELLO RITIRO STIPENDI",
+        description=(
+            "Seleziona dal menu a tendina sottostante quale stipendio o sussidio desideri incassare.\n\n"
+            "📌 *Puoi ritirare lo stipendio per ogni categoria una volta ogni 7 giorni.*"
+        ),
+        color=discord.Color.green()
     )
+    embed_gui.set_footer(text="Puglia RP • Sistema Economico Stabile")
+
+    view = ViewStipendi(ruoli_posseduti)
+    
+    # ephemeral=True rende il messaggio privato e visibile una sola volta all'utente
+    await interaction.followup.send(embed=embed_gui, view=view, ephemeral=True)
 
 # ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
