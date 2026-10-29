@@ -2004,44 +2004,6 @@ class SelectStipendio(discord.ui.Select):
             f"📅 *Potrai ritirare nuovamente questo stipendio tra 7 giorni.*",
             ephemeral=True
         )
-            return
-
-        # 3. Importi ufficiali degli stipendi
-        importi = {
-            "fdo": 3500,
-            "vvf": 3000,
-            "cri": 3000,
-            "cittadino": 800
-        }
-        stipendio_scelto = importi.get(scelta, 800)
-
-        # 4. Sfruttiamo la funzione nativa del tuo bot per aggiornare l'economia (/portafoglio)
-        eco = get_user_eco(user_id_str)
-        
-        # Aggiungiamo i soldi direttamente nel conto bancario dell'utente
-        eco["bank"] = eco.get("bank", 0) + stipendio_scelto
-        
-        # Se usi una funzione di salvataggio dedicata per l'economia, chiamala qui (es. update_user_eco se esiste, altrimenti salviamo con save_data)
-        # Salviamo il nuovo timestamp del cooldown
-        user_cooldowns[scelta] = tempo_attuale
-        save_data(data)
-
-        # Disabilita il menu a tendina per evitare doppi click
-        self.disabled = True
-        try:
-            await interaction.edit_original_response(view=self.view)
-        except Exception:
-            pass
-
-        # 5. Conferma con il saldo aggiornato visibile anche su /portafoglio
-        await interaction.followup.send(
-            f"✅ **Stipendio accreditato con successo!**\n\n"
-            f"💼 **Settore:** `{scelta.upper()}`\n"
-            f"🏦 **Accreditato in Banca:** `€ {stipendio_scelto:,}`\n"
-            f"💳 **Nuovo Saldo in Banca:** `€ {eco['bank']:,}`\n\n"
-            f"📅 *Potrai ritirare nuovamente questo stipendio tra 7 giorni.*",
-            ephemeral=True
-        )
 
 class ViewStipendi(discord.ui.View):
     def __init__(self, ruoli_disponibili):
