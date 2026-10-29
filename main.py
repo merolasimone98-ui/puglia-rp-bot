@@ -1621,7 +1621,7 @@ async def identificami_cmd(interaction: discord.Interaction):
 # ==========================================
 @bot.tree.command(name="sessione-online", description="Annuncia l'apertura della sessione di Puglia RP con grafica avanzata")
 @app_commands.checks.has_permissions(administrator=True)
-async def sessione_cmd(interaction: discord.Interaction, orario: str = "In Corso"):
+async def sessione_cmd(interaction: discord.Interaction, codice: str = "In Corso"):
     await interaction.response.defer()
     
     embed = discord.Embed(
@@ -1636,8 +1636,8 @@ async def sessione_cmd(interaction: discord.Interaction, orario: str = "In Corso
     
     # Campi ordinati e ricchi di dettagli
     embed.add_field(
-        name="⏰ Orario d'Apertura",
-        value=f"> `{orario}`",
+        name="🆔 Codice in game",
+        value=f"> `{codice}`",
         inline=True
     )
     embed.add_field(
