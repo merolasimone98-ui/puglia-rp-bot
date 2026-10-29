@@ -2118,6 +2118,55 @@ async def ritira_stipendio_cmd(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed_gui, view=view, ephemeral=True)
 
 # ==========================================
+# 🗺️ COMANDO: /mappa-puglia
+# ==========================================
+@bot.tree.command(name="mappa-puglia", description="Mostra la mappa ufficiale e le zone esplorabili di Puglia RP")
+async def mappa_puglia_cmd(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=False) # Mettilo a True se vuoi che lo veda solo chi lo digita
+    
+    embed = discord.Embed(
+        title="🗺️ PUGLIA RP — MAPPA UFFICIALE REGIONALE",
+        description=(
+            "✨ *Benvenuto nella mappa geografica di **Puglia RP**!* "
+            "Esplora le città, le coste e le zone rurali della nostra regione illuminate dai colori caldi dell'autunno. 🍂"
+        ),
+        color=discord.Color.from_rgb(230, 126, 34), # Arancione autunnale
+        timestamp=discord.utils.utcnow()
+    )
+    
+    # Campi descrittivi con le zone principali
+    embed.add_field(
+        name="🏙️ Aree Urbane & Centri",
+        value="> Zone residenziali, attività commerciali, banche e istituzioni governative.",
+        inline=False
+    )
+    embed.add_field(
+        name="🚨 Limiti di velocità",
+        value="> 🏎️ Limiti in centro/fuori città = 50 Km/h\n> 🏎️ Limiti in autostrada = 120 Km/h\n> 🏎️ Limiti in aree pedonali = 30 Km/h",
+        inline=False
+    )
+    embed.add_field(
+        name="🌊 Zone Costiere & Panoramiche",
+        value="> Strade litoranee e punti di ritrovo immersi nel paesaggio pugliese.",
+        inline=False
+    )
+    embed.add_field(
+        name="🧭 Consigli per il Viaggio",
+        value="> *Rispetta i limiti di codice stradale e guida con prudenza durante gli spostamenti in RP!*",
+        inline=False
+    )
+    
+    if interaction.guild.icon:
+        embed.set_thumbnail(url=interaction.guild.icon.url)
+        
+    embed.set_footer(text="Puglia RP • Cartografia Geografica", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+    
+    # Imposta l'immagine della mappa tramite il link diretto
+    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1565461159631392998/mappa_pugliarp.jpg?ex=6ae4fcd1&is=6ae3ab51&hm=44b30f434149461e9de042ff4d161e484b51e4a0b6d484ab08adb2b1a9389cd8&=&format=webp")
+    
+    await interaction.followup.send(embed=embed)
+
+# ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
 @bot.event
