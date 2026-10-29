@@ -1943,9 +1943,9 @@ class SelectStipendio(discord.ui.Select):
         scelta = self.values[0]
         user_id_str = str(interaction.user.id)
         tempo_attuale = int(time.time())
-        COOLDOWN_SECONDI = 7 * 24 * 60 * 60  # 7 giorni reali in secondi (604.800 s)
+        COOLDOWN_SECONDI = 7 * 24 * 60 * 60  # 7 giorni reali in secondi
         
-        # 1. Caricamento dati generali dal JSON
+        # 1. Caricamento dati generali dal file JSON
         data = load_data()
         
         # 2. Controllo Cooldown di 7 giorni
@@ -1965,6 +1965,45 @@ class SelectStipendio(discord.ui.Select):
                 f"⏰ **Prossimo ritiro disponibile tra:** `{giorni} giorni, {ore} ore e {minuti} minuti`.",
                 ephemeral=True
             )
+            return
+
+        # 3. Importi ufficiali degli stipendi
+        importi = {
+            "fdo": 3500,
+            "vvf": 3000,
+            "cri": 3000,
+            "cittadino": 800
+        }
+        stipendio_scelto = importi.get(scelta, 800)
+
+        # 4. Modifica l'economia usando la funzione del tuo bot e salva nel JSON
+        eco = get_user_eco(user_id_str)
+        eco["bank"] = eco.get("bank", 0) + stipendio_scelto
+        
+        # Sincronizza e salva in modo permanente nel dizionario generale e nel file
+        economia_data = data.setdefault("economia", {})
+        economia_data[user_id_str] = eco
+        
+        # Salva il timestamp del nuovo cooldown
+        user_cooldowns[scelta] = tempo_attuale
+        save_data(data)
+
+        # Disabilita il menu a tendina per evitare doppi click
+        self.disabled = True
+        try:
+            await interaction.edit_original_response(view=self.view)
+        except Exception:
+            pass
+
+        # 5. Messaggio di conferma finale
+        await interaction.followup.send(
+            f"✅ **Stipendio accreditato con successo!**\n\n"
+            f"💼 **Settore:** `{scelta.upper()}`\n"
+            f"🏦 **Accreditato in Banca:** `€ {stipendio_scelto:,}`\n"
+            f"💳 **Nuovo Saldo in Banca:** `€ {eco['bank']:,}`\n\n"
+            f"📅 *Potrai ritirare nuovamente questo stipendio tra 7 giorni.*",
+            ephemeral=True
+        )
             return
 
         # 3. Importi ufficiali degli stipendi
