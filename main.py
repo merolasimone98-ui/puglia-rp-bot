@@ -1894,9 +1894,10 @@ async def notifica_rifiuto(interaction: discord.Interaction, utente: discord.Mem
             timestamp=discord.utils.utcnow()
         )
         await canale_log.send(embed=embed_log)
-###########################################
-#STIPENDI#
-##########################
+
+# ==========================================
+# 📋 GUI SELECT MENU STIPENDI
+# ==========================================
 class SelectStipendio(discord.ui.Select):
     def __init__(self, ruoli_disponibili):
         opzioni = []
@@ -1944,10 +1945,10 @@ class SelectStipendio(discord.ui.Select):
         tempo_attuale = int(time.time())
         COOLDOWN_SECONDI = 7 * 24 * 60 * 60  # 7 giorni reali in secondi (604.800 s)
         
-        # 1. Caricamento dati generali (per Cooldown e Economia)
+        # 1. Caricamento dati generali dal JSON
         data = load_data()
         
-        # Gestione Cooldown
+        # 2. Controllo Cooldown di 7 giorni
         cooldowns = data.setdefault("stipendi_cooldown", {})
         user_cooldowns = cooldowns.setdefault(user_id_str, {})
         ultimo_ritiro = user_cooldowns.get(scelta, 0)
@@ -1960,13 +1961,13 @@ class SelectStipendio(discord.ui.Select):
             
             await interaction.followup.send(
                 f"⏳ **Hai già ritirato questo stipendio di recente!**\n\n"
-                f"Devi attendere **7 giorni** tra un ritiro e l'altro.\n"
+                f"Devi attendere esattamente **7 giorni** tra un ritiro e l'altro.\n"
                 f"⏰ **Prossimo ritiro disponibile tra:** `{giorni} giorni, {ore} ore e {minuti} minuti`.",
                 ephemeral=True
             )
             return
 
-        # 2. Importi degli stipendi
+        # 3. Importi ufficiali degli stipendi
         importi = {
             "fdo": 3500,
             "vvf": 3000,
@@ -1975,31 +1976,30 @@ class SelectStipendio(discord.ui.Select):
         }
         stipendio_scelto = importi.get(scelta, 800)
 
-        # 3. Accredito Diretto nel Conto Bancario dell'Economia
-        # Accediamo alla struttura esatta dell'economia usata da /portafoglio
-        economia_data = data.setdefault("economia", {})
-        conto_utente = economia_data.setdefault(user_id_str, {"contanti": 0, "banca": 0})
+        # 4. Sfruttiamo la funzione nativa del tuo bot per aggiornare l'economia (/portafoglio)
+        eco = get_user_eco(user_id_str)
         
-        # Aggiungiamo i soldi in BANCA
-        conto_utente["banca"] = conto_utente.get("banca", 0) + stipendio_scelto
-
-        # 4. Salvataggio del nuovo timestamp di ritiro e dei dati nel file JSON
+        # Aggiungiamo i soldi direttamente nel conto bancario dell'utente
+        eco["bank"] = eco.get("bank", 0) + stipendio_scelto
+        
+        # Se usi una funzione di salvataggio dedicata per l'economia, chiamala qui (es. update_user_eco se esiste, altrimenti salviamo con save_data)
+        # Salviamo il nuovo timestamp del cooldown
         user_cooldowns[scelta] = tempo_attuale
         save_data(data)
 
-        # Disabilita il menu a tendina per evitare doppi click immediati
+        # Disabilita il menu a tendina per evitare doppi click
         self.disabled = True
         try:
             await interaction.edit_original_response(view=self.view)
         except Exception:
             pass
 
-        # 5. Messaggio di conferma accreditamento
+        # 5. Conferma con il saldo aggiornato visibile anche su /portafoglio
         await interaction.followup.send(
             f"✅ **Stipendio accreditato con successo!**\n\n"
             f"💼 **Settore:** `{scelta.upper()}`\n"
-            f"🏦 **Accreditato nel Conto Bancario:** `€ {stipendio_scelto:,}`\n"
-            f"💳 **Nuovo Saldo In Banca:** `€ {conto_utente['banca']:,}`\n\n"
+            f"🏦 **Accreditato in Banca:** `€ {stipendio_scelto:,}`\n"
+            f"💳 **Nuovo Saldo in Banca:** `€ {eco['bank']:,}`\n\n"
             f"📅 *Potrai ritirare nuovamente questo stipendio tra 7 giorni.*",
             ephemeral=True
         )
@@ -2019,7 +2019,7 @@ async def ritira_stipendio_cmd(interaction: discord.Interaction):
     user_roles = [role.id for role in interaction.user.roles]
     ruoli_posseduti = []
     
-    # Verifica dei ruoli posseduti
+    # Verifica dei ruoli sul server
     if ID_RUOLO_FDO in user_roles:
         ruoli_posseduti.append("fdo")
     if ID_RUOLO_VVF in user_roles:
@@ -2036,7 +2036,7 @@ async def ritira_stipendio_cmd(interaction: discord.Interaction):
         )
         return
 
-    # Genera la GUI con il pannello di ritiro
+    # Messaggio GUI privato con menu a tendina
     embed_gui = discord.Embed(
         title="🏦 PANNELLO ACCREDITO STIPENDI",
         description=(
