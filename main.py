@@ -1615,12 +1615,11 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
 @bot.tree.command(name="identificami", description="Apri il modulo di identificazione Staff di Puglia RP")
 async def identificami_cmd(interaction: discord.Interaction):
     await interaction.response.send_modal(ModalIdentificami())
-    
 
 # ==========================================
 # 🎃 COMANDO: /sessione-online
 # ==========================================
-@bot.tree.command(name="sessione-online", description="Annuncia l'apertura della sessione di Puglia RP a tema autunnale/Halloween")
+@bot.tree.command(name="sessione-online", description="Annuncia l'apertura della sessione di Puglia RP")
 @app_commands.checks.has_permissions(administrator=True)
 async def sessione_cmd(interaction: discord.Interaction, orario: str = "ORA"):
     await interaction.response.defer()
@@ -1633,23 +1632,24 @@ async def sessione_cmd(interaction: discord.Interaction, orario: str = "ORA"):
             "🍂 *Preparatevi, accendete i motori e godetevi l'atmosfera autunnale.* \n\n"
             "⚠️ *Entra subito nel server, rispetta il regolamento e vivi la tua storia!* 📜"
         ),
-        color=discord.Color.from_rgb(230, 126, 34), # Arancione a tema autunno/halloween
+        color=discord.Color.from_rgb(230, 126, 34),
         timestamp=discord.utils.utcnow()
     )
-    
     embed.set_footer(text="Puglia RP • Sessione Ufficiale Autunnale", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
-    # Invia l'immagine della sessione online come allegato
-    file = discord.File("sessione online.jpg", filename="sessione_online.jpg")
-    embed.set_image(url="attachment://sessione_online.jpg")
-    
-    await interaction.followup.send(content="@everyone", file=file, embed=embed)
+    file_path = "sessione online.jpg"
+    if os.path.exists(file_path):
+        file = discord.File(file_path, filename="sessione_online.jpg")
+        embed.set_image(url="attachment://sessione_online.jpg")
+        await interaction.followup.send(content="@everyone", file=file, embed=embed)
+    else:
+        await interaction.followup.send(content="@everyone", embed=embed)
 
 
 # ==========================================
 # 🍂 COMANDO: /sessione-offline
 # ==========================================
-@bot.tree.command(name="sessione-offline", description="Manda l'annuncio di chiusura sessione a tema autunnale")
+@bot.tree.command(name="sessione-offline", description="Manda l'annuncio di chiusura sessione")
 @app_commands.checks.has_permissions(administrator=True)
 async def sessione_offline_cmd(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -1661,17 +1661,18 @@ async def sessione_offline_cmd(interaction: discord.Interaction):
             "👻 *Le strade tornano tranquille, ma il mistero resta nell'aria...*\n\n"
             "🙏 **Grazie di cuore a tutti i cittadini e allo Staff** per la straordinaria partecipazione!"
         ),
-        color=discord.Color.from_rgb(192, 57, 43), # Rosso scuro autunnale
+        color=discord.Color.from_rgb(192, 57, 43),
         timestamp=discord.utils.utcnow()
     )
-    
     embed.set_footer(text="Puglia RP • Alla prossima sessione", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
-    # Invia l'immagine della sessione offline come allegato
-    file = discord.File("sessione offline.jpg", filename="sessione_offline.jpg")
-    embed.set_image(url="attachment://sessione_offline.jpg")
-    
-    await interaction.followup.send(file=file, embed=embed)
+    file_path = "sessione offline.jpg"
+    if os.path.exists(file_path):
+        file = discord.File(file_path, filename="sessione_offline.jpg")
+        embed.set_image(url="attachment://sessione_offline.jpg")
+        await interaction.followup.send(file=file, embed=embed)
+    else:
+        await interaction.followup.send(embed=embed)
 
 # ==========================================
 # ⭐ MODULO: RECENSIONI STAFF (HALLOWEEN/AUTUMN EDITION)
