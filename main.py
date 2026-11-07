@@ -1546,12 +1546,13 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
 # ==========================================
 # 📝 MODALE IDENTIFICAZIONE STAFF (Senza ID Numerico)
 # ==========================================
-class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Puglia RP"):
-    roblox_user = discord.ui.TextInput(label="🎮 Username Roblox", placeholder="Es. Player123", required=True, max_length=40)
-    nome_rp = discord.ui.TextInput(label="👤 Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
-    ruolo_staff = discord.ui.TextInput(label="🛡️ Ruolo / Grado Staff", placeholder="Es. Trial / Helper / Admin", required=True, max_length=30)
+class ModalIdentificami(discord.ui.Modal, title="Identificazione Staff Puglia RP"):
+    roblox_user = discord.ui.TextInput(label="Username Roblox", placeholder="Es. Player123", required=True, max_length=40)
+    nome_rp = discord.ui.TextInput(label="Nome e Cognome RP", placeholder="Es. Mario Rossi", required=True, max_length=50)
+    ruolo_staff = discord.ui.TextInput(label="Ruolo / Grado Staff", placeholder="Es. Trial / Helper / Admin", required=True, max_length=30)
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Tutta la logica di invio e richieste API va fatta qui dentro, dopo l'apertura
         await interaction.response.defer(ephemeral=True)
 
         canale_log = interaction.guild.get_channel(ID_CANALE_LOG_IDENTIFICAZIONE)    
