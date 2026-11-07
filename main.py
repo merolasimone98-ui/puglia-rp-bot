@@ -1576,12 +1576,23 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
         except Exception:
             roblox_id = None
 
+        # --- 💾 AGGIUNGI QUESTO BLOCCO PER SALVARE I DATI LOCALI ---
+        user_id_str = str(interaction.user.id)
+        if user_id_str not in data:
+            data[user_id_str] = {}
+        
+        data[user_id_str]["roblox_user"] = username_clean
+        data[user_id_str]["nome_rp"] = self.nome_rp.value.strip()
+        data[user_id_str]["identificato"] = False  # In attesa di approvazione
+        save_data(data)
+        # ---------------------------------------------------------
+
         embed_richiesta = discord.Embed(
-            title="📥 NUOVA RICHIESTA IDENTIFICAZIONE STAFF",
+            title="📋 NUOVA RICHIESTA IDENTIFICAZIONE STAFF",
             description=(
                 f"👤 **Utente Discord:** {interaction.user.mention} (`{interaction.user.id}`)\n"
-                f"🎮 **Username Roblox:** `{username_clean}`\n"
-                f"👤 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
+                f"👤 **Username Roblox:** `{username_clean}`\n"
+                f"🪪 **Nome RP:** `{self.nome_rp.value.strip()}`\n"
                 f"🛡️ **Ruolo Dichiarato:** `{self.ruolo_staff.value.strip()}`"
             ),
             color=discord.Color.orange(),
@@ -1601,7 +1612,6 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
             ruolo_staff=self.ruolo_staff.value.strip()
         )
         await canale_log.send(embed=embed_richiesta, view=vista)
-
         await interaction.followup.send("✅ **Modulo inviato con successo!** La tua identificazione è in attesa di verifica dallo Staff.", ephemeral=True)
 
 # ==========================================
