@@ -70,7 +70,6 @@ ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
 ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
 ID_CANALE_LOG_DOCUMENTI = 1562891209675116544  # Canale Accettazione / Log Documenti
 ID_FORUM_DOCUMENTI = 1562891782415450183       # Forum Schede Documenti
-ID_CANALE_LOG_IDENTIFICAZIONE = 1568568555337945088
 # ==========================================
 # 💾 GESTIONE PERSISTENZA DATI (JSON)
 # ==========================================
@@ -1666,13 +1665,6 @@ class VistaApprovazioneIdentificazione(discord.ui.View):
             
         await interaction.message.edit(view=self)
         await interaction.followup.send(f"❌ Identificazione rifiutata da {interaction.user.mention}.", ephemeral=False)
-
-# ==========================================
-# 📌 COMANDO /IDENTIFICAMI
-# ==========================================
-@bot.tree.command(name="identificami", description="Apri il modulo di identificazione Staff di Puglia RP")
-async def identificami_cmd(interaction: discord.Interaction):
-    await interaction.response.send_modal(ModalIdentificami())
 
 # ==========================================
 # 🎃 COMANDO: /sessione-online (Con link diretto)
