@@ -714,10 +714,8 @@ class VistaPannelloDocumenti(discord.ui.View):
         await interaction.response.send_modal(ModalPortoDArmi())
 
     
-
-#sdasdas
 # --- Comando Slash /pannello ---
-@bot.tree.command(name="pannello", description="Manda il pannello principale per i documenti (Halloween Edition)")
+@bot.tree.command(name="pannello", description="Manda il pannello principale per i documenti (Winter Edition)")
 @app_commands.checks.has_permissions(administrator=True)
 async def pannello_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -2099,10 +2097,38 @@ async def mappa_puglia_cmd(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f'🤖 Bot connesso come {bot.user}')
-    
+
     bot.add_view(VistaPannelloDocumenti())
     bot.add_view(VistaContoBancario())
     bot.add_view(VistaServizioStaff())
+
+    # --- INVIO AUTOMATICO PANNELLO ---
+    ID_CANALE_PANNELLO = 1562891119824601258 # Inserisci l'ID del canale dove vuoi il pannello
+    canale = bot.get_channel(ID_CANALE_PANNELLO)
+    if canale:
+        embed = discord.Embed(
+            title="❄️ CENTRO SERVIZI PUGLIA RP - WINTER EDITION ❄️",
+            description=(
+                "❄️ **Benvenuto nella Motorizzazione & Anagrafe Ufficiale!** ❄️\n"
+                "Clicca sui pulsanti in basso per inviare le tue richieste ufficiali.\n\n"
+                "📜 **1. Cittadinanza Ufficiale** ❄️\n"
+                "• **Descrizione:** Registrazione all'Anagrafe del server.\n"
+                "• **Requisiti:** Inserisci Nome e Cognome RP realistici.\n\n"
+                "🚗 **2. Licenza di Guida / Patenti (A, B, C, D)** 🚗\n"
+                "• **Descrizione:** Registrazione veicolo e licenza di guida.\n"
+                "• **Categorie:** 🏍️ **A** (Moto) | 🚗 **B** (Auto) | 🚛 **C** (Camion) | 🚌 **D** (Bus)\n"
+                "• **Nota:** Il Nome RP deve essere **identico** alla Cittadinanza!\n\n"
+                "🔫 **3. Licenza Porto d'Armi** 🔫\n"
+                "• **Descrizione:** Licenza per detenzione e uso armi legale.\n"
+                "• **Requisiti:** Visita psicofisica idonea e motivazione RP.\n\n"
+                "⚠️ **Regolamento e Note Importanti** ⚠️\n"
+                "1️⃣ Assicurati di non possedere già il documento.\n"
+                "2️⃣ In caso di **rifiuto**, attendere **10 minuti di cooldown** ⏳.\n"
+                "3️⃣ Compila i moduli con serietà: no troll o nomi irrealistici 🥊."
+            ),
+            color=discord.Color.from_rgb(230, 126, 34)
+        )
+        await canale.send(embed=embed, view=VistaPannelloDocumenti())
 
     try:
         synced = await bot.tree.sync()
