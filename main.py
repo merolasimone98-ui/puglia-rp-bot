@@ -70,7 +70,7 @@ ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
 ID_FORUM_STAFF_IDENTIFICATI = 1563176554786463894
 ID_CANALE_LOG_DOCUMENTI = 1562891209675116544  # Canale Accettazione / Log Documenti
 ID_FORUM_DOCUMENTI = 1562891782415450183       # Forum Schede Documenti
-
+ID_CANALE_LOG_IDENTIFICAZIONE = 1568568555337945088
 # ==========================================
 # 💾 GESTIONE PERSISTENZA DATI (JSON)
 # ==========================================
@@ -1554,7 +1554,7 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_IDENTIFICAZIONE)    
         if not canale_log:
             await interaction.followup.send("❌ Canale log documenti non trovato!", ephemeral=True)
             return
