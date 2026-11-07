@@ -199,7 +199,19 @@ class Documenti(discord.ui.View):
                 if ID_RUOLO_ASSICURATO != 0:
                     ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
 
-            elif "PATENTE" in tipo_upper: role_id = next((ID_RUOLO_PATENTI[k] for k in ID_RUOLO_PATENTI if k in tipo_upper.lower().strip().replace(" ", "_")), None); ruolo_da_assegnare = interaction.guild.get_role(role_id) if role_id else None
+            if "PATENTE" in tipo_upper:
+                chiave_patente = tipo_upper.lower().strip().replace(" ", "_")
+                role_id = ID_RUOLO_PATENTI.get(chiave_patente)
+            if not role_id:
+                for k in ID_RUOLO_PATENTI:
+                    if k in chiave_patente:
+                        role_id = ID_RUOLO_PATENTI[k]
+                        break
+            ruolo_assegnato_patente = interaction.guild.get_role(role_id) if role_id else None
+            if ruolo_assegnato_patente:
+                ruolo_da_assegnare = ruolo_assegnato_patente
+            else:
+                print(f"[DEBUG] Errore: Nessun ID trovato per {tipo_upper}")
 
             save_data(data)
 
