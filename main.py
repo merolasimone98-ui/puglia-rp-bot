@@ -202,21 +202,14 @@ class Documenti(discord.ui.View):
             elif "PATENTE" in tipo_upper:
         role_id = None
         chiave_patente = tipo_upper.lower().strip().replace(" ", "_")
-        
-        # Cerca direttamente la chiave corretta nel dizionario (es. patente_a, patente_b, ecc.)
         for k in ID_RUOLO_PATENTI:
             if k in chiave_patente:
                 role_id = ID_RUOLO_PATENTI[k]
                 break
-                
         if role_id:
             ruolo_da_assegnare = interaction.guild.get_role(role_id)
         else:
             print(f"[DEBUG] Errore: Nessun ID trovato per {tipo_upper}")
-                if role_id:
-                    ruolo_da_assegnare = interaction.guild.get_role(role_id)
-                else:
-                    print(f"[DEBUG] Errore: Nessun ID trovato per {tipo_upper}")
 
             save_data(data)
 
