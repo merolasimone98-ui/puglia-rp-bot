@@ -1614,6 +1614,58 @@ class ModalIdentificami(discord.ui.Modal, title="🆔 Identificazione Staff Pugl
         await canale_log.send(embed=embed_richiesta, view=vista)
         await interaction.followup.send("✅ **Modulo inviato con successo!** La tua identificazione è in attesa di verifica dallo Staff.", ephemeral=True)
 
+class VistaApprovazioneIdentificazione(discord.ui.View):
+    def __init__(self, user_id, roblox_user, roblox_id, nome_rp, ruolo_staff):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.roblox_user = roblox_user
+        self.roblox_id = roblox_id
+        self.nome_rp = nome_rp
+        self.ruolo_staff = ruolo_staff
+
+    @discord.ui.button(label="Accetta Identificazione", style=discord.ButtonStyle.green, custom_id="accetta_identificazione_btn")
+    async def accetta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Controlla se l'utente ha i permessi da staff (puoi regolare i permessi come preferisci)
+        if not interaction.user.guild_permissions.manage_roles:
+            await interaction.response.send_message("❌ Non hai i permessi per accettare questa identificazione.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        
+        # Aggiorniamo i dati salvati
+        if self.user_id in data:
+            data[self.user_id]["identificato"] = True
+            save_data(data)
+
+        # Recuperiamo il membro per assegnargli i ruoli se necessario
+        member = interaction.guild.get_member(int(self.user_id))
+        if not member:
+            try:
+                member = await interaction.guild.fetch_member(int(self.user_id))
+            except Exception:
+                member = None
+
+        # Disattiva i bottoni dopo l'approvazione
+        for child in self.children:
+            child.disabled = True
+        
+        await interaction.message.edit(view=self)
+        await interaction.followup.send(f"✅ Identificazione accettata da {interaction.user.mention} per **{self.nome_rp}**.", ephemeral=False)
+
+    @discord.ui.button(label="Rifiuta Identificazione", style=discord.ButtonStyle.red, custom_id="rifiuta_identificazione_btn")
+    async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.manage_roles:
+            await interaction.response.send_message("❌ Non hai i permessi per rifiutare questa identificazione.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+        
+        for child in self.children:
+            child.disabled = True
+            
+        await interaction.message.edit(view=self)
+        await interaction.followup.send(f"❌ Identificazione rifiutata da {interaction.user.mention}.", ephemeral=False)
+
 # ==========================================
 # 📌 COMANDO /IDENTIFICAMI
 # ==========================================
