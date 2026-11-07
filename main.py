@@ -125,7 +125,7 @@ def update_user_duty(user_id_str, duty_data):
     save_data(data)
 
 # ==========================================
-# 🎃 MODULO: PANNELLO DOCUMENTI (CON APPROVAZIONE STAFF)
+# ❄️ MODULO: PANNELLO DOCUMENTI (CON APPROVAZIONE STAFF)
 # ==========================================
 ID_CANALE_ACCETTAZIONE_STAFF = 1562891209675116544 
 
@@ -697,7 +697,7 @@ class VistaPannelloDocumenti(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Cittadinanza Ufficiale", style=discord.ButtonStyle.primary, emoji="🎃", custom_id="btn_cittadinanza")
+    @discord.ui.button(label="Cittadinanza Ufficiale", style=discord.ButtonStyle.primary, emoji="❄️", custom_id="btn_cittadinanza")
     async def btn_cittadinanza(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalCittadinanza())
 
@@ -721,18 +721,18 @@ class VistaPannelloDocumenti(discord.ui.View):
 @app_commands.checks.has_permissions(administrator=True)
 async def pannello_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🎃 CENTRO SERVIZI PUGLIA RP - HALLOWEEN EDITION 🏴‍☠️",
+        title="☃️ CENTRO SERVIZI PUGLIA RP - WINTER EDITION ❄️",
         description=(
-            "🧟‍♂️ **Benvenuto nella Motorizzazione & Anagrafe Ufficiale!** 👻\n"
+            "☃️ **Benvenuto nella Motorizzazione & Anagrafe Ufficiale!** ❄️\n"
             "Clicca sui pulsanti in basso per inviare le tue richieste ufficiali.\n\n"
-            "📜 **1. Cittadinanza Ufficiale** 🎃\n"
+            "📜 **1. Cittadinanza Ufficiale** ❄️\n"
             "• **Descrizione:** Registrazione all'Anagrafe del server.\n"
             "• **Requisiti:** Inserisci Nome e Cognome RP realistici.\n\n"
             "🚗 **2. Licenza di Guida / Patenti (A, B, C, D)** 🏎️\n"
             "• **Descrizione:** Registrazione veicolo e licenza di guida.\n"
             "• **Categorie:** 🏍️ **A** (Moto) | 🚗 **B** (Auto) | 🚛 **C** (Camion) | 🚌 **D** (Bus)\n"
             "• **Nota:** Il Nome RP deve essere **identico** alla Cittadinanza!\n\n"
-            "🔫 **3. Licenza Porto d'Armi** 🪦\n"
+            "🔫 **3. Licenza Porto d'Armi** 🔫\n"
             "• **Descrizione:** Licenza per detenzione e uso armi legale.\n"
             "• **Requisiti:** Visita psicofisica idonea e motivazione RP.\n\n"
             "⚠️ **Regolamento e Note Importanti** 🕸️\n"
@@ -747,7 +747,7 @@ async def pannello_cmd(interaction: discord.Interaction):
         embed.set_thumbnail(url=interaction.guild.icon.url)
 
     embed.set_footer(
-        text="🍂 Puglia RP - Sistema Automazione Documenti • Dolcetto o Scherzetto? 🎃",
+        text="☃️ Puglia RP - Sistema Automazione Documenti • ❄️",
         icon_url=interaction.guild.icon.url if interaction.guild.icon else None
     )
 
@@ -1205,7 +1205,7 @@ async def aggiorna_leaderboard_embed(guild: discord.Guild):
     classifica_ordinata = sorted(leaderboard.items(), key=lambda x: x[1], reverse=True)
 
     embed = discord.Embed(
-        title="🏆 CLASSIFICA SETTIMANALE ORE STAFF — PUGLIA RP 🎃",
+        title="🏆 CLASSIFICA SETTIMANALE ORE STAFF — PUGLIA RP ❄️",
         description="I minuti di servizio si aggiornano automaticamente alla chiusura di ogni turno.\n*Si resetta ogni Lunedì a 00:00.*\n\n",
         color=discord.Color.gold(),
         timestamp=datetime.now(timezone.utc)
@@ -1544,7 +1544,7 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
 
 
 # ==========================================
-# 🎃 COMANDO: /sessione-online (Con link diretto)
+# ❄️ COMANDO: /sessione-online (Con link diretto)
 # ==========================================
 @bot.tree.command(name="sessione-online", description="Annuncia l'apertura della sessione di Puglia RP con grafica avanzata")
 @app_commands.checks.has_permissions(administrator=True)
@@ -1552,7 +1552,7 @@ async def sessione_cmd(interaction: discord.Interaction, codice: str = "In Corso
     await interaction.response.defer()
     
     embed = discord.Embed(
-        title="🎃 PUGLIA RP — SESSIONE APERTA! 🦇",
+        title="❄️ PUGLIA RP — SESSIONE APERTA! ☃️",
         description=(
             "✨ *Le porte della regione sono ufficialmente spalancate!* "
             "Preparate i veicoli, radunate la vostra fazione e immergetevi in questa nuova avventura autunnale. 🔮"
@@ -1793,7 +1793,7 @@ async def setup_recensioni_cmd(interaction: discord.Interaction):
         return
 
     embed = discord.Embed(
-        title="🌟 PUGLIA RP — RECENSIONI STAFF 🍂🎃",
+        title="🌟 PUGLIA RP — RECENSIONI STAFF ❄️☃️",
         description=(
             "✨ **Vuoi valutare l'operato del nostro Staff?**\n"
             "La tua opinione è fondamentale per aiutarci a migliorare la qualità del Roleplay e premiare i membri dello Staff più attivi e disponibili! 🛡️⚡\n\n"
