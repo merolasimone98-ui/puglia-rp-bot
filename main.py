@@ -2244,13 +2244,26 @@ class VistaPannelloImmatricolazione(discord.ui.View):
 # ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
+stati_rotazione = [
+    "Codice: up2sv3z5",
+    "Puglia RP - Winter Edition ❄️",
+    "Usa /aiuto per i comandi 🚗"
+]
+
+@tasks.loop(seconds=30)
+async def cambia_stato_periodico():
+    import random
+    testo_casuale = random.choice(stati_rotazione)
+    await bot.change_presence(activity=discord.CustomActivity(name=testo_casuale))
+
 
 @bot.event
 async def on_ready():
     print(f'Bot connesso come {bot.user}')
     
-    # 🔹 AGGIUNGI QUESTA RIGA QUI:
-    await bot.change_presence(activity=discord.CustomActivity(name="💡 Codice: t0g7qhmk"))
+    # Avvia la rotazione dello stato ogni 30 secondi
+    if not cambia_stato_periodico.is_running():
+        cambia_stato_periodico.start()
 
     bot.add_view(VistaPannelloDocumenti())
     bot.add_view(VistaContoBancario())
