@@ -698,19 +698,19 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
     )
     tipo_veicolo = discord.ui.TextInput(
         label="Tipologia Veicolo",
-        placeholder="Es. Auto, Moto, Camion, Bus, Elicottero",
+        placeholder="Es. Auto, moto, ecc...",
         required=True,
         max_length=30
     )
     modello = discord.ui.TextInput(
         label="Modello e Marca Veicolo",
-        placeholder="Es. Fiat Panda / Audi RS6",
+        placeholder="Es. Volskburg Marin",
         required=True,
         max_length=50
     )
     targa = discord.ui.TextInput(
         label="Targa del Veicolo",
-        placeholder="Es. AA123BB",
+        placeholder="Es. AB/BC/10",
         required=True,
         max_length=10
     )
