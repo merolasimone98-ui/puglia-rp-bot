@@ -2250,7 +2250,7 @@ async def on_ready():
     print(f'Bot connesso come {bot.user}')
     
     # 🔹 AGGIUNGI QUESTA RIGA QUI:
-    await bot.change_presence(activity=discord.CustomActivity(name="Codice: t0g7qhmk"))
+    await bot.change_presence(activity=discord.CustomActivity(name="💡 Codice: t0g7qhmk"))
 
     bot.add_view(VistaPannelloDocumenti())
     bot.add_view(VistaContoBancario())
