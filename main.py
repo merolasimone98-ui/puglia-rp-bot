@@ -1623,11 +1623,14 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
 # ==========================================
 # 💸 MODULO: MULTE AVANZATE (BANCA / CONTANTI + NEGATIVO)
 # ==========================================
+
+ID_RUOLO_FDO = 1563276863462178956  # ID del ruolo FDO autorizzato
+
 @bot.tree.command(name="multa", description="Emetti una sanzione pecuniaria scalando i fondi da Banca o Contanti")
 @app_commands.describe(
-    utente="L'utente da multare", 
-    importo="Importo della multa", 
-    fonte="Da dove prelevare i soldi", 
+    utente="L'utente da multare",
+    importo="Importo della multa",
+    fonte="Da dove prelevare i soldi",
     motivo="Motivazione della multa"
 )
 @app_commands.choices(fonte=[
@@ -1636,6 +1639,12 @@ async def revoca_cmd(interaction: discord.Interaction, utente: discord.Member, t
 ])
 async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, importo: int, fonte: app_commands.Choice[str], motivo: str):
     await interaction.response.defer(ephemeral=True)
+
+    # 🛑 Controllo se l'utente possiede il ruolo FDO
+    ruolo_fdo = interaction.guild.get_role(ID_RUOLO_FDO)
+    if not ruolo_fdo or ruolo_fdo not in interaction.user.roles:
+        await interaction.followup.send("❌ Questo comando è riservato esclusivamente alle Forze dell'Ordine!", ephemeral=True)
+        return
 
     if importo <= 0:
         await interaction.followup.send("❌ L'importo della multa deve essere maggiore di zero!", ephemeral=True)
@@ -1647,7 +1656,7 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
     # 1. Controllo se sceglie la Banca ma non ha il conto
     if fonte.value == "bank" and not eco.get("has_account"):
         await interaction.followup.send(
-            f"❌ **Impossibile emettere la multa!** {utente.mention} **non possiede un conto bancario attivo**, quindi non è possibile scalare i fondi dalla banca.",
+            f"❌ **Impossibile emettere la multa!** {utente.mention} **non possiede un conto bancario attivo**, quindi non è possibile scalare i fondi dalla Banca.",
             ephemeral=True
         )
         return
@@ -1660,16 +1669,16 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
     canale_multe = interaction.guild.get_channel(ID_CANALE_REGISTRO_MULTE)
     if canale_multe:
         embed_log = discord.Embed(
-            title="💸 NOTIFICA DI SANZIONE / MULTA — PUGLIA RP",
+            title="📜 NOTIFICA DI SANZIONE / MULTA – PUGLIA RP",
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow()
         )
         embed_log.add_field(name="👤 Sanzionato", value=utente.mention, inline=True)
         embed_log.add_field(name="👮 Emessa da", value=interaction.user.mention, inline=True)
-        embed_log.add_field(name="💰 Importo", value=f"**€ {importo:,}**", inline=True)
-        embed_log.add_field(name="📍 Prelevato da", value="🏦 Conto Bancario" if fonte.value == "bank" else "💵 Portafoglio", inline=True)
-        embed_log.add_field(name="📊 Saldo Residuo Utente", value=f"• Banca: `€ {eco['bank']:,}`\n• Contanti: `€ {eco['cash']:,}`", inline=False)
-        embed_log.add_field(name="📋 Motivazione", value=f"```{motivo}```", inline=False)
+        embed_log.add_field(name="💰 Importo", value=f"€{importo:,}", inline=True)
+        embed_log.add_field(name="💳 Prelevato da", value="🏦 Conto Bancario" if fonte.value == "bank" else "💵 Portafoglio", inline=True)
+        embed_log.add_field(name="📊 Saldo Residuo Utente", value=f"🏦 Banca: €{eco['bank']:,}\n💵 Contanti: €{eco['cash']:,}", inline=False)
+        embed_log.add_field(name="📜 Motivazione", value=f"```\n{motivo}\n```", inline=False)
 
         if utente.display_avatar:
             embed_log.set_thumbnail(url=utente.display_avatar.url)
@@ -1678,8 +1687,8 @@ async def multa_cmd(interaction: discord.Interaction, utente: discord.Member, im
 
     fonte_testo = "Conto Bancario" if fonte.value == "bank" else "Portafoglio"
     await interaction.followup.send(
-        f"✅ Multa di **€ {importo:,}** emessa con successo a {utente.mention} (prelevata da **{fonte_testo}**).\n"
-        f"Nuovo saldo utente: 🏦 `€ {eco['bank']:,}` | 💵 `€ {eco['cash']:,}`",
+        f"✅ Multa di **€{importo:,}** emessa con successo a {utente.mention} (prelevata da **{fonte_testo}**).\n"
+        f"📊 Nuovo saldo utente: 🏦 **€{eco['bank']:,}** | 💵 **€{eco['cash']:,}**",
         ephemeral=True
     )
 
@@ -1848,8 +1857,6 @@ async def recensisci_staff_cmd(interaction: discord.Interaction, staffer: discor
 # ==========================================
 # 🚨 MODULO: ARRESTI & MULTE
 # ==========================================
-
-ID_RUOLO_FDO = 1563276863462178956  # ID del ruolo FDO autorizzato
 
 @bot.tree.command(name="arresta", description="Emetti un mandato di arresto per un utente")
 @app_commands.describe(utente="L'utente da arrestare", durata="Durata della pena", motivo="Motivazione dell'arresto")
