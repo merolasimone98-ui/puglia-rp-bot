@@ -1585,7 +1585,7 @@ async def sessione_cmd(interaction: discord.Interaction, codice: str = "In Corso
     embed.set_footer(text="Puglia RP • Sistema Ufficiale di Sessione", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
     # Imposta l'immagine tramite il link diretto di Discord
-    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1565450254050918470/online.jpg?ex=6ae4f2a9&is=6ae3a129&hm=719cfc812aa81f2a335b6e5349fcb59f1101934cb97a75c305ab2eac54d8582d&=&format=webp")
+    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1568566537932120186/Frozen_Puglia_Roleplay_Emblem.png?ex=6af0f1ad&is=6aefa02d&hm=38e645fbcce6797a9f00d493bd0f347a5323b14916d2cfa717ff9358e92a2cd0&=&format=webp&quality=lossless")
     
     await interaction.followup.send(content="@everyone 🔔 **Nuova Sessione Disponibile!**", embed=embed)
 
@@ -1631,7 +1631,7 @@ async def sessione_offline_cmd(interaction: discord.Interaction):
     embed.set_footer(text="Puglia RP • Chiusura Sessione", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
     # Imposta l'immagine tramite il link diretto di Discord
-    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1565450253677895891/offline.jpg?ex=6ae4f2a9&is=6ae3a129&hm=c67c71837b0df2a9f1ab82a6ec09c5e14fdfd740a9988330e9cf60463af1eb33&=&format=webp")
+    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1568566537932120186/Frozen_Puglia_Roleplay_Emblem.png?ex=6af0f1ad&is=6aefa02d&hm=38e645fbcce6797a9f00d493bd0f347a5323b14916d2cfa717ff9358e92a2cd0&=&format=webp&quality=lossless")
     
     await interaction.followup.send(embed=embed)
 
@@ -2085,7 +2085,7 @@ async def mappa_puglia_cmd(interaction: discord.Interaction):
     embed.set_footer(text="Puglia RP • Cartografia Geografica", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
     
     # Imposta l'immagine della mappa tramite il link diretto
-    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1565461159631392998/mappa_pugliarp.jpg?ex=6ae4fcd1&is=6ae3ab51&hm=44b30f434149461e9de042ff4d161e484b51e4a0b6d484ab08adb2b1a9389cd8&=&format=webp")
+    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1568566537932120186/Frozen_Puglia_Roleplay_Emblem.png?ex=6af0f1ad&is=6aefa02d&hm=38e645fbcce6797a9f00d493bd0f347a5323b14916d2cfa717ff9358e92a2cd0&=&format=webp&quality=lossless")
     
     await interaction.followup.send(embed=embed)
 
