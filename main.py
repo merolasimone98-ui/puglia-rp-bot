@@ -161,59 +161,58 @@ class Documenti(discord.ui.View):
             ruolo_da_assegnare = None
 
             # --- GESTIONE DEI VARI TIPI DI DOCUMENTI ---
-            if "CITTADINANZA" in tipo_upper or "CITTADINO" in tipo_upper:
-                user_lic["cittadinanza"] = True
-                emoji_doc = "🇮🇹"
-                ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+    if "CITTADINANZA" in tipo_upper or "CITTADINO" in tipo_upper:
+        user_lic["cittadinanza"] = True
+        emoji_doc = "🇮🇹"
+        ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_CITTADINO)
 
-            elif "PORTO" in tipo_upper or "ARMI" in tipo_upper:
-                user_lic["porto_darmi"] = True
-                emoji_doc = "🔫"
-                if ID_RUOLO_PORTO_DARMI != 0:
-                    ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
+    elif "PORTO" in tipo_upper or "ARMI" in tipo_upper:
+        user_lic["porto_darmi"] = True
+        emoji_doc = "🔫"
+        ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_PORTO_DARMI)
 
-            elif "ASSICURAZIONE" in tipo_upper:
-                # 1. Controlla e scala i € 500
-                eco = get_user_eco(user_id_str)
-                cash = eco.get("cash", 0)
-                bank = eco.get("bank", 0)
+    elif "ASSICURAZIONE" in tipo_upper:
+        # 1. Controlla e scala i € 500
+        eco = get_user_eco(user_id_str)
+        cash = eco.get("cash", 0)
+        bank = eco.get("bank", 0)
 
-                if cash >= 500:
-                    eco["cash"] -= 500
-                elif bank >= 500:
-                    eco["bank"] -= 500
-                else:
-                    await interaction.followup.send(
-                        f"❌ **Impossibile approvare:** L'utente non ha € 500. Possiede € {cash:,} in contanti e € {bank:,} in banca.",
-                        ephemeral=True
-                    )
-                    return
+        if cash >= 500:
+            eco["cash"] -= 500
+        elif bank >= 500:
+            eco["bank"] -= 500
+        else:
+            await interaction.followup.send(
+                f"❌ **Impossibile approvare:** L'utente non ha € 500. Possiede € {cash:,} in contanti e € {bank:,} in banca.",
+                ephemeral=True
+            )
+            return
 
-                update_user_eco(user_id_str, eco)
+        update_user_eco(user_id_str, eco)
 
-                # 2. Salva lo stato nei dati locali
-                user_lic["assicurazione"] = True
-                emoji_doc = "🛡️"
-                if ID_RUOLO_ASSICURATO != 0:
-                    ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
+        # 2. Salva lo stato nei dati locali
+        user_lic["assicurazione"] = True
+        emoji_doc = "🛡️"
+        if ID_RUOLO_ASSICURATO != 0:
+            ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_ASSICURATO)
 
-            role_id = None
-            chiave_patente = tipo_upper.lower().strip().replace(" ", "_")
-            if "patente" in chiave_patente or chiave_patente in ["a", "b", "c", "d"]:
-                if chiave_patente in ["a", "b", "c", "d"]:
-                    chiave_patente = f"patente_{chiave_patente}"
-            
-                role_id = ID_RUOLO_PATENTI.get(chiave_patente)
-                if not role_id:
-                    for k in ID_RUOLO_PATENTI:
-                        if k in chiave_patente or chiave_patente in k:
-                            role_id = ID_RUOLO_PATENTI[k]
-                            break
+    # --- GESTIONE PATENTI ---
+    chiave_patente = tipo_upper.lower().strip().replace(" ", "_")
+    if "patente" in chiave_patente or chiave_patente in ["a", "b", "c", "d"]:
+        if chiave_patente in ["a", "b", "c", "d"]:
+            chiave_patente = f"patente_{chiave_patente}"
 
-            ruolo_da_assegnare = interaction.guild.get_role(role_id) if role_id else None
+        role_id = ID_RUOLO_PATENTI.get(chiave_patente)
+        if not role_id:
+            for k in ID_RUOLO_PATENTI:
+                if k in chiave_patente or chiave_patente in k:
+                    role_id = ID_RUOLO_PATENTI[k]
+                    break
 
-            save_data(data)
+        if role_id:
+            ruolo_da_assegnare = interaction.guild.get_role(role_id)
 
+    save_data(data)
             # Recuperiamo l'utente dal server
             member = interaction.guild.get_member(self.user_id)
             if not member:
