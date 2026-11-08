@@ -696,6 +696,12 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
         required=True,
         max_length=50
     )
+    tipo_veicolo = discord.ui.TextInput(
+        label="Tipologia Veicolo",
+        placeholder="Es. Auto, Moto, Camion, Bus, Elicottero",
+        required=True,
+        max_length=30
+    )
     modello = discord.ui.TextInput(
         label="Modello e Marca Veicolo",
         placeholder="Es. Fiat Panda / Audi RS6",
@@ -710,7 +716,7 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Canale log staff dove inviare la richiesta da approvare
+        ID_CANALE_LOG_DOCUMENTI = 1562891209675116544
 
         canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
         
@@ -720,12 +726,14 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
         )
         embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=False)
         embed.add_field(name="📄 Nome RP", value=self.proprietario.value, inline=True)
+        embed.add_field(name="🚙 Tipologia", value=self.tipo_veicolo.value, inline=True)
         embed.add_field(name="🚘 Modello", value=self.modello.value, inline=True)
         embed.add_field(name="🔢 Targa", value=self.targa.value.upper(), inline=True)
 
         view = VistaApprovazioneImmatricolazione(
             user_id=interaction.user.id,
             proprietario=self.proprietario.value,
+            tipo_veicolo=self.tipo_veicolo.value,
             modello=self.modello.value,
             targa=self.targa.value.upper()
         )
@@ -734,16 +742,16 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
             await canale_log.send(embed=embed, view=view)
 
         await interaction.response.send_message(
-            "✅ La tua richiesta è stata inviata allo staff!",
+            "✅ La tua richiesta di immatricolazione è stata inviata allo staff!",
             ephemeral=True
         )
 
-
 class VistaApprovazioneImmatricolazione(discord.ui.View):
-    def __init__(self, user_id: int, proprietario: str, modello: str, targa: str):
+    def __init__(self, user_id: int, proprietario: str, tipo_veicolo: str, modello: str, targa: str):
         super().__init__(timeout=None)
         self.user_id = user_id
         self.proprietario = proprietario
+        self.tipo_veicolo = tipo_veicolo
         self.modello = modello
         self.targa = targa
 
@@ -763,22 +771,40 @@ class VistaApprovazioneImmatricolazione(discord.ui.View):
         embed_richiesta.add_field(name="👮 Approvato da", value=interaction.user.mention, inline=False)
         await interaction.response.edit_message(embed=embed_richiesta, view=self)
 
-        # Crea il Post nel Forum
+        # 1. Crea il Post nel Forum
         if forum_channel and isinstance(forum_channel, discord.ForumChannel):
             embed_forum = discord.Embed(
                 title=f"🚘 Scheda Veicolo: {self.targa}",
                 color=discord.Color.from_rgb(52, 152, 219)
             )
             embed_forum.add_field(name="👤 Proprietario RP", value=self.proprietario, inline=True)
+            embed_forum.add_field(name="🚙 Tipologia", value=self.tipo_veicolo, inline=True)
             embed_forum.add_field(name="🚘 Modello", value=self.modello, inline=True)
             embed_forum.add_field(name="🔢 Targa", value=self.targa, inline=True)
             embed_forum.add_field(name="🆔 Utente", value=f"<@{self.user_id}>", inline=False)
             embed_forum.set_footer(text=f"Immatricolato da {interaction.user.display_name}")
 
             await forum_channel.create_thread(
-                name=f"[{self.targa}] {self.modello} - {self.proprietario}",
+                name=f"[{self.targa}] {self.modello} ({self.tipo_veicolo}) - {self.proprietario}",
                 embed=embed_forum
             )
+
+        # 2. Invia il DM all'utente
+        try:
+            utente = await interaction.guild.fetch_member(self.user_id)
+            if utente:
+                embed_dm = discord.Embed(
+                    title="✅ IMMATRICOLAZIONE APPROVATA",
+                    description=(
+                        f"Ciao {utente.mention}, la tua richiesta di immatricolazione per il veicolo "
+                        f"**{self.modello}** ({self.tipo_veicolo} - Targa: **{self.targa}**) è stata **APPROVATA** dallo Staff!\n\n"
+                        f"🚘 È stato creato un post dedicato nel canale Forum con la scheda tecnica del tuo mezzo."
+                    ),
+                    color=discord.Color.green()
+                )
+                await utente.send(embed=embed_dm)
+        except Exception as e:
+            print(f"Impossibile inviare il DM all'utente: {e}")
 
     @discord.ui.button(label="Rifiuta", style=discord.ButtonStyle.danger, emoji="❌", custom_id="btn_rifiuta_imm")
     async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -790,6 +816,22 @@ class VistaApprovazioneImmatricolazione(discord.ui.View):
         embed_richiesta.title = "🚗 IMMATRICOLAZIONE RIFIUTATA"
         embed_richiesta.add_field(name="👮 Rifiutato da", value=interaction.user.mention, inline=False)
         await interaction.response.edit_message(embed=embed_richiesta, view=self)
+
+        # Invia il DM di rifiuto all'utente
+        try:
+            utente = await interaction.guild.fetch_member(self.user_id)
+            if utente:
+                embed_dm = discord.Embed(
+                    title="❌ IMMATRICOLAZIONE RIFIUTATA",
+                    description=(
+                        f"Ciao {utente.mention}, la tua richiesta di immatricolazione per il veicolo "
+                        f"**{self.modello}** ({self.tipo_veicolo} - Targa: **{self.targa}**) è stata **RIFIUTATA** dallo Staff."
+                    ),
+                    color=discord.Color.red()
+                )
+                await utente.send(embed=embed_dm)
+        except Exception as e:
+            print(f"Impossibile inviare il DM all'utente: {e}")
 
 
 
@@ -2249,14 +2291,23 @@ async def on_ready():
                 await msg.delete()
 
         embed_imm = discord.Embed(
-            title="🚗 IMMATRICOLAZIONE VEICOLI",
+            title="❄️ MOTORIZZAZIONE & IMMATRICOLAZIONE VEICOLI - WINTER EDITION ❄️",
             description=(
-                "Benvenuto nel servizio immatricolazioni!\n\n"
-                "Per immatricolare il tuo veicolo e registrarlo nel sistema, clicca sul pulsante **Immatricola Veicolo** qui sotto e compila tutti i campi del modulo."
+                "**Benvenuto nel portale ufficiale delle immatricolazioni di Puglia RP!**\n\n"
+                "Gestisci la registrazione dei tuoi veicoli in modo rapido e sicuro per circolare sulle strade della regione.\n\n"
+                "**📋 Come procedere:**\n"
+                "• Clicca sul pulsante **Immatricola Veicolo** qui sotto.\n"
+                "• Compila tutti i campi richiesti nel modulo (Nome RP, Modello e Targa).\n"
+                "• Invia la richiesta e attendi la verifica da parte del nostro team di staff.\n\n"
+                "**⚠️ Regole e Note Importanti:**\n"
+                "1️⃣ **Dati Reali:** Utilizza esclusivamente dati coerenti con il tuo personaggio RP.\n"
+                "2️⃣ **Targhe Valide:** Assicurati che la targa inserita non sia già in uso da altri veicoli.\n"
+                "3️⃣ **Approvazione:** Una volta approvata la pratica, verrà creato automaticamente un post dedicato nel canale Forum con la scheda tecnica del tuo mezzo.\n\n"
+                "*Mantieni la massima serietà e rispetta il codice della strada anche tra i ghiacci invernali! 🚗❄️*"
             ),
-            color=discord.Color.from_rgb(52, 152, 219)
+            color=discord.Color.from_rgb(137, 207, 240) # Colore azzurro ghiaccio
         )
-        embed_imm.set_footer(text="Sistema Immatricolazioni Automator")
+        embed_imm.set_footer(text="Puglia RP • Sistema Ufficiale Immatricolazioni")
         
         await canale_imm.send(embed=embed_imm, view=VistaPannelloImmatricolazione())
 
