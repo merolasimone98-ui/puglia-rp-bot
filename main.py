@@ -61,7 +61,7 @@ ID_FORUM_DOCUMENTI = 1562891782415450183
 
 ID_CANALE_COMANDO_RECENSIONI = 1563156712679145502  # Sostituisci con l'ID del canale recensioni
 ID_CANALE_LOG_RECENSIONI = 1563194331320557768     # Canale Forum Recensioni
-LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg?ex=6adc9a49&is=6adb48c9&hm=889b0be762da4780fd7225ff6632c4ae457b26a5d1b1f6bfdadb3c413816c642&=&format=webp"
+LINK_IMMAGINE_RECENSIONE = "https://media.discordapp.net/attachments/1561284670883242086/1568566537932120186/Frozen_Puglia_Roleplay_Emblem.png?ex=6af0f1ad&is=6aefa02d&hm=38e645fbcce6797a9f00d493bd0f347a5323b14916d2cfa717ff9358e92a2cd0&=&format=webp&quality=lossless"
 
 ID_CANALE_REGISTRO_ARRESTI = 1524685772995690607
 ID_CANALE_REGISTRO_MULTE = 1563215066411696299
@@ -1806,7 +1806,7 @@ async def setup_recensioni_cmd(interaction: discord.Interaction):
             "```\n"
             "⚠️ *Tutte le recensioni valide verranno pubblicate automaticamente nell'Anagrafe/Forum delle Recensioni! Non usare il comando per scherzi o troll.* 🚫"
         ),
-        color=discord.Color.from_rgb(230, 126, 34),  # Arancione Halloween/Autunno
+        color=discord.Color.from_rgb(137, 207, 240), 
         timestamp=discord.utils.utcnow()
     )
 
@@ -1815,7 +1815,7 @@ async def setup_recensioni_cmd(interaction: discord.Interaction):
         embed.set_thumbnail(url=interaction.guild.icon.url)
 
     # Immagine Banner Ufficiale Puglia RP Recensione Staff
-    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1563156338580652072/1792755906447.jpg")
+    embed.set_image(url="https://media.discordapp.net/attachments/1561284670883242086/1568566537932120186/Frozen_Puglia_Roleplay_Emblem.png?ex=6af0f1ad&is=6aefa02d&hm=38e645fbcce6797a9f00d493bd0f347a5323b14916d2cfa717ff9358e92a2cd0&=&format=webp&quality=lossless")
     embed.set_footer(text="Puglia RP • Valuta il nostro Staff 👑", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
 
     await canale_recensioni.send(embed=embed)
@@ -2124,7 +2124,7 @@ async def on_ready():
                 "2️⃣ In caso di **rifiuto**, attendere **10 minuti di cooldown** ⏳.\n"
                 "3️⃣ Compila i moduli con serietà: no troll o nomi irrealistici 🍬."
             ),
-            color=discord.Color.from_rgb(230, 126, 34)
+            color=discord.Color.from_rgb(137, 207, 240)
         )
         await canale.send(embed=embed, view=VistaPannelloDocumenti())
 
