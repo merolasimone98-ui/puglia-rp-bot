@@ -709,7 +709,7 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        ID_CANALE_LOG_IMMATRICOLAZIONI = 123456789012345678  # Sostituisci con l'ID del canale staff
+        ID_CANALE_LOG_IMMATRICOLAZIONI = 1568988787613237361  # Canale dove lo staff riceve la richiesta
 
         canale_log = interaction.guild.get_channel(ID_CANALE_LOG_IMMATRICOLAZIONI)
         
@@ -736,7 +736,6 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
             "✅ La tua richiesta di immatricolazione è stata inviata allo staff!",
             ephemeral=True
         )
-
 
 class VistaApprovazioneImmatricolazione(discord.ui.View):
     def __init__(self, user_id: int, proprietario: str, modello: str, targa: str):
@@ -789,6 +788,12 @@ class VistaApprovazioneImmatricolazione(discord.ui.View):
         embed_richiesta.title = "🚗 IMMATRICOLAZIONE RIFIUTATA"
         embed_richiesta.add_field(name="👮 Rifiutato da", value=interaction.user.mention, inline=False)
         await interaction.response.edit_message(embed=embed_richiesta, view=self)
+
+    @discord.ui.button(label="Richiedi Immatricolazione", style=discord.ButtonStyle.primary, emoji="🚗", custom_id="btn_immatricola")
+    async def btn_immatricola(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(ModalImmatricolazione())
+
+
 
 # --- Vista dei Pulsanti ---
 class VistaPannelloDocumenti(discord.ui.View):
