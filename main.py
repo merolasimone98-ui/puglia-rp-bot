@@ -2241,13 +2241,39 @@ class VistaPannelloImmatricolazione(discord.ui.View):
     @discord.ui.button(label="Immatricola Veicolo", style=discord.ButtonStyle.primary, emoji="🚗", custom_id="btn_immatricola_main")
     async def btn_immatricola(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ModalImmatricolazione())
+
+@bot.tree.command(name="aiuto", description="❄️ Mostra la guida ufficiale e il funzionamento del server")
+async def aiuto(interaction: discord.Interaction):
+    embed_aiuto = discord.Embed(
+        title="❄️ GUIDA UFFICIALE PUGLIA RP • WINTER EDITION ❄️",
+        description=(
+            "Benvenuto nel portale di aiuto del server! Qui trovi tutte le informazioni "
+            "necessarie per orientarti tra i servizi e le attività invernali.\n\n"
+            "**📋 Servizi Principali Disponibili:**\n"
+            "• **Cittadinanza & Documenti:** Richiedi i documenti ufficiali tramite il pannello dedicato.\n"
+            "• **Patenti e Immatricolazioni:** Registra i tuoi veicoli (auto, moto, camion e bus) e richiedi la licenza di guida[cite: 3].\n"
+            "• **Porto d'Armi:** Invia la richiesta per la detenzione e l'uso delle armi nel rispetto delle regole RP.\n\n"
+            "**⚙️ Come muoversi:**\n"
+            "1️⃣ Interagisci con i bottoni e i menu nei canali dei servizi.\n"
+            "2️⃣ Compila con attenzione i moduli richiesti (usando dati realistici).\n"
+            "3️⃣ Attendi la verifica e l'approvazione da parte dello Staff.\n\n"
+            "*Buon divertimento e goditi l'atmosfera invernale di Puglia RP! ☃️🚗*"
+        ),
+        color=discord.Color.from_rgb(137, 207, 240) # Azzurro ghiaccio
+    )
+    embed_aiuto.set_footer(text="Puglia RP • Centro Assistenza Ufficiale")
+
+    # ephemeral=True rende il messaggio visibile solo all'utente che ha digitato il comando
+    await interaction.response.send_message(embed=embed_aiuto, ephemeral=True)
+
+
 # ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
 stati_rotazione = [
-    "Codice: up2sv3z5",
-    "Puglia RP - Winter Edition ❄️",
-    "Usa /aiuto per i comandi 🚗"
+    "💡 Codice: t0g7qhmk",
+    "🔴 Sessione Chiusa - In Manutenzione ❄️",
+    "🆘 Usa /aiuto per i comandi ☃️"
 ]
 
 @tasks.loop(seconds=30)
