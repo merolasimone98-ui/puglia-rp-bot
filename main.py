@@ -1848,20 +1848,30 @@ async def recensisci_staff_cmd(interaction: discord.Interaction, staffer: discor
 # ==========================================
 # 🚨 MODULO: ARRESTI & MULTE
 # ==========================================
+
+ID_RUOLO_FDO = 1563276863462178956  # ID del ruolo FDO autorizzato
+
 @bot.tree.command(name="arresta", description="Emetti un mandato di arresto per un utente")
 @app_commands.describe(utente="L'utente da arrestare", durata="Durata della pena", motivo="Motivazione dell'arresto")
 async def arresta_cmd(interaction: discord.Interaction, utente: discord.Member, durata: str, motivo: str):
     await interaction.response.defer(ephemeral=True)
+
+    # Controlla se l'utente possiede il ruolo FDO
+    ruolo_fdo = interaction.guild.get_role(ID_RUOLO_FDO)
+    if not ruolo_fdo or ruolo_fdo not in interaction.user.roles:
+        await interaction.followup.send("❌ Questo comando è riservato esclusivamente alle Forze dell'Ordine!", ephemeral=True)
+        return
+
     canale_arresti = interaction.guild.get_channel(ID_CANALE_REGISTRO_ARRESTI)
     if not canale_arresti:
         await interaction.followup.send("❌ Canale registro arresti non trovato!", ephemeral=True)
         return
 
-    embed = discord.Embed(title="🚨 REGISTRO ARRESTI — PUGLIA RP", color=discord.Color.dark_red(), timestamp=discord.utils.utcnow())
+    embed = discord.Embed(title="🚨 REGISTRO ARRESTI – PUGLIA RP", color=discord.Color.dark_red(), timestamp=discord.utils.utcnow())
     embed.add_field(name="👤 Utente", value=utente.mention, inline=True)
     embed.add_field(name="👮 Agente/Staff", value=interaction.user.mention, inline=True)
-    embed.add_field(name="⏱️ Durata", value=f"`{durata}`", inline=False)
-    embed.add_field(name="📋 Motivazione", value=f"```{motivo}```", inline=False)
+    embed.add_field(name="⏰ Durata", value=f"`{durata}`", inline=False)
+    embed.add_field(name="📜 Motivazione", value=f"```\n{motivo}\n```", inline=False)
 
     if utente.display_avatar:
         embed.set_thumbnail(url=utente.display_avatar.url)
