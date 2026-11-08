@@ -1060,23 +1060,26 @@ async def preleva_cmd(interaction: discord.Interaction, importo: int):
 # ------------------------------------------
 
 # ==========================================
-# ➕ / ➖ GESTIONE SOLDI (ADMIN / FDO)
+# ➕ / ➖ GESTIONE SOLDI (SOLO STAFF / ADMIN)
 # ==========================================
 
-ID_RUOLO_FDO = 1563276863462178956  # ID del ruolo FDO autorizzato
-
-# Funzione di supporto per verificare se l'utente è Admin o FDO
-def is_admin_o_fdo(interaction: discord.Interaction) -> bool:
-    if interaction.user.guild_permissions.administrator:
+# Funzione di supporto per verificare se l'utente è Staff o Admin
+def is_staff_o_admin(interaction: discord.Interaction) -> bool:
+    # Controlla se ha permessi da amministratore o di moderazione (es. Gestione Messaggi / Ban)
+    if interaction.user.guild_permissions.administrator or interaction.user.guild_permissions.manage_messages:
         return True
-    ruolo_fdo = interaction.guild.get_role(ID_RUOLO_FDO)
-    if ruolo_fdo and ruolo_fdo in interaction.user.roles:
-        return True
+    
+    # Se preferisci controllare un ruolo staff specifico, puoi scommentare le righe sotto inserendo l'ID del ruolo Staff:
+    # ID_RUOLO_STAFF = 123456789012345678
+    # ruolo_staff = interaction.guild.get_role(ID_RUOLO_STAFF)
+    # if ruolo_staff and ruolo_staff in interaction.user.roles:
+    #     return True
+        
     return False
 
 
 # --- ➕ AGGIUNGI SOLDI ---
-@bot.tree.command(name="aggiungi-soldi", description="Aggiungi soldi ad un utente (Admin o FDO)")
+@bot.tree.command(name="aggiungi-soldi", description="Aggiungi soldi ad un utente (Solo Staff)")
 @app_commands.describe(utente="L'utente a cui aggiungere denaro", tipo="Dove aggiungere il denaro?", importo="Quantità in euro")
 @app_commands.choices(tipo=[
     app_commands.Choice(name="💵 Contanti (Portafoglio)", value="cash"),
@@ -1085,8 +1088,8 @@ def is_admin_o_fdo(interaction: discord.Interaction) -> bool:
 async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str], importo: int):
     await interaction.response.defer(ephemeral=True)
 
-    if not is_admin_o_fdo(interaction):
-        await interaction.followup.send("❌ Questo comando è riservato agli Amministratori o alle Forze dell'Ordine!", ephemeral=True)
+    if not is_staff_o_admin(interaction):
+        await interaction.followup.send("❌ Questo comando è riservato esclusivamente allo Staff!", ephemeral=True)
         return
 
     if importo <= 0:
@@ -1109,7 +1112,7 @@ async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.M
 
 
 # --- ➖ RIMUOVI SOLDI ---
-@bot.tree.command(name="rimuovi-soldi", description="Rimuovi soldi ad un utente (Admin o FDO)")
+@bot.tree.command(name="rimuovi-soldi", description="Rimuovi soldi ad un utente (Solo Staff)")
 @app_commands.describe(utente="L'utente a cui togliere denaro", tipo="Da dove togliere il denaro?", importo="Quantità in euro")
 @app_commands.choices(tipo=[
     app_commands.Choice(name="💵 Contanti (Portafoglio)", value="cash"),
@@ -1118,8 +1121,8 @@ async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.M
 async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str], importo: int):
     await interaction.response.defer(ephemeral=True)
 
-    if not is_admin_o_fdo(interaction):
-        await interaction.followup.send("❌ Questo comando è riservato agli Amministratori o alle Forze dell'Ordine!", ephemeral=True)
+    if not is_staff_o_admin(interaction):
+        await interaction.followup.send("❌ Questo comando è riservato esclusivamente allo Staff!", ephemeral=True)
         return
 
     if importo <= 0:
