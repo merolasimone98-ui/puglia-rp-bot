@@ -1059,16 +1059,35 @@ async def preleva_cmd(interaction: discord.Interaction, importo: int):
 # 🛠️ COMANDI ADMIN / STAFF
 # ------------------------------------------
 
-# ➕ /aggiungi-soldi
-@bot.tree.command(name="aggiungi-soldi", description="Aggiungi soldi ad un utente (Solo Admin)")
+# ==========================================
+# ➕ / ➖ GESTIONE SOLDI (ADMIN / FDO)
+# ==========================================
+
+ID_RUOLO_FDO = 1563276863462178956  # ID del ruolo FDO autorizzato
+
+# Funzione di supporto per verificare se l'utente è Admin o FDO
+def is_admin_o_fdo(interaction: discord.Interaction) -> bool:
+    if interaction.user.guild_permissions.administrator:
+        return True
+    ruolo_fdo = interaction.guild.get_role(ID_RUOLO_FDO)
+    if ruolo_fdo and ruolo_fdo in interaction.user.roles:
+        return True
+    return False
+
+
+# --- ➕ AGGIUNGI SOLDI ---
+@bot.tree.command(name="aggiungi-soldi", description="Aggiungi soldi ad un utente (Admin o FDO)")
 @app_commands.describe(utente="L'utente a cui aggiungere denaro", tipo="Dove aggiungere il denaro?", importo="Quantità in euro")
 @app_commands.choices(tipo=[
     app_commands.Choice(name="💵 Contanti (Portafoglio)", value="cash"),
     app_commands.Choice(name="🏦 Conto Bancario", value="bank")
 ])
-@app_commands.checks.has_permissions(administrator=True)
 async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str], importo: int):
     await interaction.response.defer(ephemeral=True)
+
+    if not is_admin_o_fdo(interaction):
+        await interaction.followup.send("❌ Questo comando è riservato agli Amministratori o alle Forze dell'Ordine!", ephemeral=True)
+        return
 
     if importo <= 0:
         await interaction.followup.send("❌ L'importo deve essere maggiore di zero!", ephemeral=True)
@@ -1078,7 +1097,7 @@ async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.M
     eco = get_user_eco(user_id_str)
 
     if tipo.value == "bank":
-        eco["has_account"] = True  # Se gli admin aggiungono soldi in banca, attiva automaticamente il conto
+        eco["has_account"] = True 
         eco["bank"] += importo
         destinazione = "conto bancario"
     else:
@@ -1086,19 +1105,22 @@ async def aggiungi_soldi_cmd(interaction: discord.Interaction, utente: discord.M
         destinazione = "portafoglio (contanti)"
 
     update_user_eco(user_id_str, eco)
-    await interaction.followup.send(f"✅ Aggiunti **€ {importo:,}** sul {destinazione} di {utente.mention}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Aggiunti **€{importo:,}** sul {destinazione} di {utente.mention}!", ephemeral=True)
 
 
-# ➖ /rimuovi-soldi
-@bot.tree.command(name="rimuovi-soldi", description="Rimuovi soldi ad un utente (Solo Admin)")
+# --- ➖ RIMUOVI SOLDI ---
+@bot.tree.command(name="rimuovi-soldi", description="Rimuovi soldi ad un utente (Admin o FDO)")
 @app_commands.describe(utente="L'utente a cui togliere denaro", tipo="Da dove togliere il denaro?", importo="Quantità in euro")
 @app_commands.choices(tipo=[
     app_commands.Choice(name="💵 Contanti (Portafoglio)", value="cash"),
     app_commands.Choice(name="🏦 Conto Bancario", value="bank")
 ])
-@app_commands.checks.has_permissions(administrator=True)
 async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Member, tipo: app_commands.Choice[str], importo: int):
     await interaction.response.defer(ephemeral=True)
+
+    if not is_admin_o_fdo(interaction):
+        await interaction.followup.send("❌ Questo comando è riservato agli Amministratori o alle Forze dell'Ordine!", ephemeral=True)
+        return
 
     if importo <= 0:
         await interaction.followup.send("❌ L'importo deve essere maggiore di zero!", ephemeral=True)
@@ -1115,7 +1137,7 @@ async def rimuovi_soldi_cmd(interaction: discord.Interaction, utente: discord.Me
         destinazione = "portafoglio (contanti)"
 
     update_user_eco(user_id_str, eco)
-    await interaction.followup.send(f"✅ Rimosse **€ {importo:,}** dal {destinazione} di {utente.mention}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Rimossi **€{importo:,}** dal {destinazione} di {utente.mention}!", ephemeral=True)
         
 # ==========================================
 # 🏦 APERTURA CONTO BANCARIO (SCRITTURA DIRETTA)
