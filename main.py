@@ -161,11 +161,10 @@ class Documenti(discord.ui.View):
             ruolo_da_assegnare = None
 
             # --- GESTIONE DEI VARI TIPI DI DOCUMENTI ---
-            if "CITTADINANZA" in tipo_upper:
+            if "CITTADINANZA" in tipo_upper or "CITTADINO" in tipo_upper:
                 user_lic["cittadinanza"] = True
                 emoji_doc = "🇮🇹"
-                if ID_RUOLO_CITTADINO != 0:
-                    ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_CITTADINO)
+                ruolo_da_assegnare = interaction.guild.get_role(ID_RUOLO_CITTADINO)
 
             elif "PORTO" in tipo_upper or "ARMI" in tipo_upper:
                 user_lic["porto_darmi"] = True
