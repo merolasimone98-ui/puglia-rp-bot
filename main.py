@@ -612,6 +612,7 @@ class ModalPortoDArmi(discord.ui.Modal, title="🔫 Richiesta Porto d'Armi Pugli
                 f"❌ Impossibile inviare la richiesta nel canale staff. Errore: `{e}`", 
                 ephemeral=True
             )
+            
 
 # ==========================================
 # 🛡️ MODALE RICHIESTA ASSICURAZIONE (COMPLETO)
@@ -687,8 +688,107 @@ class ModalAssicurazione(discord.ui.Modal, title="🛡️ Stipula Assicurazione 
             f"✅ **Richiesta inviata con successo!** L'assicurazione per **{veicolo_info}** è stata inoltrata allo Staff per l'approvazione.", 
             ephemeral=True
         )
+class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
+    proprietario = discord.ui.TextInput(
+        label="Nome e Cognome RP Proprietario",
+        placeholder="Es. Mario Rossi",
+        required=True,
+        max_length=50
+    )
+    modello = discord.ui.TextInput(
+        label="Modello e Marca Veicolo",
+        placeholder="Es. Fiat Panda / Audi RS6",
+        required=True,
+        max_length=50
+    )
+    targa = discord.ui.TextInput(
+        label="Targa del Veicolo",
+        placeholder="Es. AA123BB",
+        required=True,
+        max_length=10
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        ID_CANALE_LOG_IMMATRICOLAZIONI = 123456789012345678  # Sostituisci con l'ID del canale staff
+
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_IMMATRICOLAZIONI)
+        
+        embed = discord.Embed(
+            title="🚗 NUOVA RICHIESTA IMMATRICOLAZIONE",
+            color=discord.Color.from_rgb(52, 152, 219)
+        )
+        embed.add_field(name="👤 Utente Discord", value=interaction.user.mention, inline=False)
+        embed.add_field(name="📄 Nome RP", value=self.proprietario.value, inline=True)
+        embed.add_field(name="🚘 Modello", value=self.modello.value, inline=True)
+        embed.add_field(name="🔢 Targa", value=self.targa.value.upper(), inline=True)
+
+        view = VistaApprovazioneImmatricolazione(
+            user_id=interaction.user.id,
+            proprietario=self.proprietario.value,
+            modello=self.modello.value,
+            targa=self.targa.value.upper()
+        )
+
+        if canale_log:
+            await canale_log.send(embed=embed, view=view)
+
+        await interaction.response.send_message(
+            "✅ La tua richiesta di immatricolazione è stata inviata allo staff!",
+            ephemeral=True
+        )
 
 
+class VistaApprovazioneImmatricolazione(discord.ui.View):
+    def __init__(self, user_id: int, proprietario: str, modello: str, targa: str):
+        super().__init__(timeout=None)
+        self.user_id = user_id
+        self.proprietario = proprietario
+        self.modello = modello
+        self.targa = targa
+
+    @discord.ui.button(label="Approva", style=discord.ButtonStyle.success, emoji="✅", custom_id="btn_approva_imm")
+    async def approva(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ID_FORUM_IMMATRICOLAZIONI = 1568987214501777418
+        
+        forum_channel = interaction.guild.get_channel(ID_FORUM_IMMATRICOLAZIONI)
+        
+        # Disabilita i bottoni nella richiesta dello staff
+        for child in self.children:
+            child.disabled = True
+            
+        embed_richiesta = interaction.message.embeds[0]
+        embed_richiesta.color = discord.Color.green()
+        embed_richiesta.title = "🚗 IMMATRICOLAZIONE APPROVATA"
+        embed_richiesta.add_field(name="👮 Approvato da", value=interaction.user.mention, inline=False)
+        await interaction.response.edit_message(embed=embed_richiesta, view=self)
+
+        # Crea il Post nel Forum
+        if forum_channel and isinstance(forum_channel, discord.ForumChannel):
+            embed_forum = discord.Embed(
+                title=f"🚘 Scheda Veicolo: {self.targa}",
+                color=discord.Color.from_rgb(52, 152, 219)
+            )
+            embed_forum.add_field(name="👤 Proprietario RP", value=self.proprietario, inline=True)
+            embed_forum.add_field(name="🚘 Modello", value=self.modello, inline=True)
+            embed_forum.add_field(name="🔢 Targa", value=self.targa, inline=True)
+            embed_forum.add_field(name="🆔 Utente", value=f"<@{self.user_id}>", inline=False)
+            embed_forum.set_footer(text=f"Immatricolato da {interaction.user.display_name}")
+
+            await forum_channel.create_thread(
+                name=f"[{self.targa}] {self.modello} - {self.proprietario}",
+                embed=embed_forum
+            )
+
+    @discord.ui.button(label="Rifiuta", style=discord.ButtonStyle.danger, emoji="❌", custom_id="btn_rifiuta_imm")
+    async def rifiuta(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+            
+        embed_richiesta = interaction.message.embeds[0]
+        embed_richiesta.color = discord.Color.red()
+        embed_richiesta.title = "🚗 IMMATRICOLAZIONE RIFIUTATA"
+        embed_richiesta.add_field(name="👮 Rifiutato da", value=interaction.user.mention, inline=False)
+        await interaction.response.edit_message(embed=embed_richiesta, view=self)
 
 # --- Vista dei Pulsanti ---
 class VistaPannelloDocumenti(discord.ui.View):
