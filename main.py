@@ -709,9 +709,10 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        ID_CANALE_LOG_IMMATRICOLAZIONI = 1568988787613237361  # Canale dove lo staff riceve la richiesta
+        # Canale log staff dove inviare la richiesta da approvare
+        ID_CANALE_LOG_STAFF = 123456789012345678  # Metti l'ID del canale staff!
 
-        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_IMMATRICOLAZIONI)
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_STAFF)
         
         embed = discord.Embed(
             title="🚗 NUOVA RICHIESTA IMMATRICOLAZIONE",
@@ -733,9 +734,10 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
             await canale_log.send(embed=embed, view=view)
 
         await interaction.response.send_message(
-            "✅ La tua richiesta di immatricolazione è stata inviata allo staff!",
+            "✅ La tua richiesta è stata inviata allo staff!",
             ephemeral=True
         )
+
 
 class VistaApprovazioneImmatricolazione(discord.ui.View):
     def __init__(self, user_id: int, proprietario: str, modello: str, targa: str):
@@ -2197,6 +2199,33 @@ async def mappa_puglia_cmd(interaction: discord.Interaction):
 # ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
+@bot.event
+async def on_ready():
+    print(f"Bot connesso come {bot.user}")
+    
+    # Canale dove pubblicare il pannello
+    ID_CANALE_PANNELLO = 1568988787613237361
+    canale = bot.get_channel(ID_CANALE_PANNELLO)
+    
+    if canale:
+        # Pulisce i vecchi messaggi del bot nel canale per non duplicare il pannello
+        async for msg in canale.history(limit=10):
+            if msg.author == bot.user:
+                await msg.delete()
+
+        embed = discord.Embed(
+            title="📋 IMMATRICOLAZIONE VEICOLI",
+            description=(
+                "Benvenuto nel servizio immatricolazioni!\n\n"
+                "Per immatricolare il tuo veicolo e registraggio nel sistema, clicca sul pulsante **Immatricola Veicolo** qui sotto e compila tutti i campi del modulo."
+            ),
+            color=discord.Color.from_rgb(52, 152, 219)
+        )
+        embed.set_footer(text="Sistema Immatricolazioni Automator")
+        
+        await canale.send(embed=embed, view=VistaPannelloImmatricolazione())
+
+
 @bot.event
 async def on_ready():
     print(f'🤖 Bot connesso come {bot.user}')
