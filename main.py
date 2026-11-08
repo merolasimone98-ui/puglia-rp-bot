@@ -2196,6 +2196,13 @@ async def mappa_puglia_cmd(interaction: discord.Interaction):
     
     await interaction.followup.send(embed=embed)
 
+class VistaPannelloImmatricolazione(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Immatricola Veicolo", style=discord.ButtonStyle.primary, emoji="🚗", custom_id="btn_immatricola_main")
+    async def btn_immatricola(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(ModalImmatricolazione())
 # ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
 # ==========================================
