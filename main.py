@@ -58,6 +58,7 @@ ID_RUOLO_PATENTI = {
 }
 
 ID_FORUM_DOCUMENTI = 1562891782415450183
+ID_FORUM_IMMATRICOLAZIONI = 1568987214501777418
 
 ID_CANALE_COMANDO_RECENSIONI = 1563156712679145502  # Sostituisci con l'ID del canale recensioni
 ID_CANALE_LOG_RECENSIONI = 1563194331320557768     # Canale Forum Recensioni
@@ -710,9 +711,8 @@ class ModalImmatricolazione(discord.ui.Modal, title="Immatricolazione Veicolo"):
 
     async def on_submit(self, interaction: discord.Interaction):
         # Canale log staff dove inviare la richiesta da approvare
-        ID_CANALE_LOG_STAFF = 123456789012345678  # Metti l'ID del canale staff!
 
-        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_STAFF)
+        canale_log = interaction.guild.get_channel(ID_CANALE_LOG_DOCUMENTI)
         
         embed = discord.Embed(
             title="🚗 NUOVA RICHIESTA IMMATRICOLAZIONE",
@@ -790,10 +790,6 @@ class VistaApprovazioneImmatricolazione(discord.ui.View):
         embed_richiesta.title = "🚗 IMMATRICOLAZIONE RIFIUTATA"
         embed_richiesta.add_field(name="👮 Rifiutato da", value=interaction.user.mention, inline=False)
         await interaction.response.edit_message(embed=embed_richiesta, view=self)
-
-    @discord.ui.button(label="Richiedi Immatricolazione", style=discord.ButtonStyle.primary, emoji="🚗", custom_id="btn_immatricola")
-    async def btn_immatricola(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ModalImmatricolazione())
 
 
 
