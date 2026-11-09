@@ -2423,6 +2423,18 @@ async def on_ready():
         
         await canale_imm.send(embed=embed_imm, view=VistaPannelloImmatricolazione())
 
+    # ==========================================
+# 🛡️ BLOCCO SERVER NON AUTORIZZATI
+# ==========================================
+
+ID_SERVER_UFFICIALE = 1524666763222974565  # Sostituisci con l'ID esatto del tuo server
+
+@bot.event
+async def on_guild_join(guild):
+    if guild.id != ID_SERVER_UFFICIALE:
+        await guild.leave()
+        print(f"⚠️ Tentativo di aggiunta in un server non autorizzato ({guild.name} - ID: {guild.id}). Uscito automaticamente.")
+
     try:
         synced = await bot.tree.sync()
         print(f"⚡ Sincronizzati {len(synced)} comandi slash a livello globale!")
