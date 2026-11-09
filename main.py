@@ -2308,6 +2308,34 @@ async def aiuto(interaction: discord.Interaction):
     # ephemeral=True rende il messaggio visibile solo all'utente che ha digitato il comando
     await interaction.response.send_message(embed=embed_aiuto, ephemeral=True)
 
+# ==========================================
+# 📺 MODULO: TG5 (NOTIZIE / FLASH NEWS - SOLO STAFF)
+# ==========================================
+
+@bot.tree.command(name="tg5", description="📺 Trasmetti una Flash News del TG5 (Solo Staff)")
+@app_commands.describe(notizia="La notizia da mandare in onda")
+async def tg5_cmd(interaction: discord.Interaction, notizia: str):
+    await interaction.response.defer(ephemeral=True)
+
+    # Controlla se l'utente appartiene allo Staff (Admin o permessi di moderazione)
+    if not is_staff_o_admin(interaction):
+        await interaction.followup.send("❌ Questo comando è riservato esclusivamente allo Staff!", ephemeral=True)
+        return
+
+    # Embed del TG5 a tema invernale
+    embed_tg5 = discord.Embed(
+        title="📺 TG5 • EDIZIONE STRAORDINARIA",
+        description=f"**Inviato da:** {interaction.user.mention}\n\n**🔴 ULTIM'ORA:**\n{notizia}",
+        color=discord.Color.from_rgb(137, 207, 240),  # Azzurro ghiaccio
+        timestamp=discord.utils.utcnow()
+    )
+    embed_tg5.set_footer(text="Puglia RP • TG5 News Department")
+    embed_tg5.set_thumbnail(url="https://images.emojiterra.com/google/android-12l/512px/1f4fa.png")
+
+    # Invia l'embed nel canale pubblico
+    await interaction.channel.send(embed=embed_tg5)
+    await interaction.followup.send("✅ Notizia del TG5 trasmessa con successo!", ephemeral=True)
+
 
 # ==========================================
 # 🚀 EVENTO ON_READY & AVVIO BOT
